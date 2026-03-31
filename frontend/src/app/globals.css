@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+:root {
+  --pwc-orange: #D04A02;
+  --pwc-orange-light: #E87722;
+  --pwc-orange-dark: #A33B01;
+  --pwc-black: #2D2D2D;
+  --pwc-gray-dark: #464646;
+  --pwc-gray: #7D7D7D;
+  --pwc-gray-light: #E8E8E8;
+  --pwc-gray-bg: #F5F5F5;
+  --pwc-white: #FFFFFF;
+  --background: #FFFFFF;
+  --foreground: #2D2D2D;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-pwc-orange: var(--pwc-orange);
+  --color-pwc-orange-light: var(--pwc-orange-light);
+  --color-pwc-orange-dark: var(--pwc-orange-dark);
+  --color-pwc-black: var(--pwc-black);
+  --color-pwc-gray-dark: var(--pwc-gray-dark);
+  --color-pwc-gray: var(--pwc-gray);
+  --color-pwc-gray-light: var(--pwc-gray-light);
+  --color-pwc-gray-bg: var(--pwc-gray-bg);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Noto Sans KR", sans-serif;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--pwc-gray-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--pwc-gray);
+  border-radius: 3px;
+}
+
+/* Table styles */
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--pwc-gray-light);
+}
+
+th {
+  background: var(--pwc-gray-bg);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--pwc-gray-dark);
+  text-align: left;
+  white-space: nowrap;
+}
+
+td {
+  font-size: 0.8125rem;
+}
+
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
