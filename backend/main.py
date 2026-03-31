@@ -4,9 +4,10 @@ PwC Easy View 3.0 - FastAPI Backend
 Serves financial data from CSV files as REST API endpoints.
 """
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
+from typing import Optional
 import os
 import shutil
 
@@ -57,24 +58,48 @@ async def health():
 
 # ===== Full Financial Data =====
 @app.get("/api/data")
-async def get_financial_data():
-    """Return the complete financial dataset."""
+async def get_financial_data(
+    period: Optional[str] = Query("ytd", description="비교기간: ytd(전년누적), yoy_month(전년동월), mom(전월비교)"),
+    month: Optional[str] = Query("2025-09", description="기준월 (예: 2025-09)"),
+):
+    """Return the complete financial dataset with period filtering metadata."""
     if not processor.is_loaded:
         raise HTTPException(status_code=404, detail="데이터가 로드되지 않았습니다. CSV 파일을 업로드해주세요.")
-    return processor.data
+    return {
+        **processor.data,
+        "filter": {"period": period, "month": month},
+    }
+
+
+# ===== Available Months =====
+@app.get("/api/months")
+async def get_months():
+    """Return list of available months from the JE data."""
+    if not processor.is_loaded:
+        raise HTTPException(status_code=404, detail="데이터 미로드")
+    return {"months": processor.data.get("availableMonths", [])}
 
 
 # ===== Summary =====
 @app.get("/api/summary")
-async def get_summary():
+async def get_summary(
+    period: Optional[str] = Query("ytd", description="비교기간: ytd(전년누적), yoy_month(전년동월), mom(전월비교)"),
+    month: Optional[str] = Query("2025-09", description="기준월 (예: 2025-09)"),
+):
     if not processor.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
-    return processor.data.get("summary", {})
+    return {
+        **processor.data.get("summary", {}),
+        "filter": {"period": period, "month": month},
+    }
 
 
 # ===== PL (Income Statement) =====
 @app.get("/api/pl")
-async def get_pl():
+async def get_pl(
+    period: Optional[str] = Query("ytd", description="비교기간: ytd(전년누적), yoy_month(전년동월), mom(전월비교)"),
+    month: Optional[str] = Query("2025-09", description="기준월 (예: 2025-09)"),
+):
     if not processor.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
     return {
@@ -84,6 +109,8 @@ async def get_pl():
         "monthlyNetIncome": processor.data.get("monthlyNetIncome", {}),
         "monthlyGrossProfit": processor.data.get("monthlyGrossProfit", {}),
         "quarterlyPL": processor.data.get("quarterlyPL", {}),
+        "monthlyPL": processor.data.get("monthlyPL", {}),
+        "filter": {"period": period, "month": month},
     }
 
 

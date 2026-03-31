@@ -135,6 +135,9 @@ class DataProcessor:
         sales_by_customer_current = defaultdict(float)
         sales_by_customer_prior = defaultdict(float)
 
+        # Monthly PL breakdown by month key (e.g., '2025-01')
+        monthly_pl_disclosure = defaultdict(lambda: defaultdict(float))
+
         # Journal
         account_credit_totals = defaultdict(float)
         customer_credit_totals = defaultdict(float)
@@ -158,6 +161,10 @@ class DataProcessor:
                     net = e['amount'] if e['side'] == '대변' else -e['amount']
                 else:
                     net = e['amount'] if e['side'] == '차변' else -e['amount']
+
+                # Track monthly PL by disclosure account
+                month_key = date[:7]
+                monthly_pl_disclosure[month_key][e['disclosure']] += net
 
                 if year == current_year and date <= current_cutoff:
                     pl_disclosure_current[e['disclosure']] += net
@@ -450,6 +457,35 @@ class DataProcessor:
         cc_current = len([c for c in sales_by_customer_current if sales_by_customer_current[c] > 0])
         cc_prior = len([c for c in sales_by_customer_prior if sales_by_customer_prior[c] > 0])
 
+        # Available months and monthly PL breakdown
+        available_months = sorted(set(e['date'][:7] for e in je))
+
+        monthly_pl = {}
+        for mk, disclosures in monthly_pl_disclosure.items():
+            m_revenue = abs(disclosures.get('매출액', 0))
+            m_cogs = disclosures.get('매출원가', 0)
+            m_sga = disclosures.get('판매비와관리비', 0)
+            if m_sga == 0:
+                # Fall back to summing individual SGA items from mgmt accounts
+                # We only have disclosure-level here, so keep 0 if not available
+                pass
+            m_gross = m_revenue - m_cogs
+            m_op = m_gross - m_sga
+            m_other_inc = disclosures.get('기타수익', 0)
+            m_other_exp = disclosures.get('기타비용', 0)
+            m_fin_inc = disclosures.get('금융수익', 0)
+            m_fin_exp = disclosures.get('금융비용', 0)
+            m_tax = disclosures.get('법인세비용', 0)
+            m_net = m_op + m_other_inc - m_other_exp + m_fin_inc - m_fin_exp - m_tax
+
+            monthly_pl[mk] = {
+                'revenue': round(m_revenue),
+                'cogs': round(m_cogs),
+                'sga': round(m_sga),
+                'operatingProfit': round(m_op),
+                'netIncome': round(m_net),
+            }
+
         return {
             'baseDate': '2025년 09월',
             'companyName': 'ABC Company',
@@ -484,6 +520,8 @@ class DataProcessor:
                 'topDecreaseCustomers': [{'name': n, 'amount': round(a)} for n, a in top_dec if a < 0],
             },
             'quarterlyPL': {'headers': ['공시용계정'], 'rows': []},
+            'availableMonths': available_months,
+            'monthlyPL': monthly_pl,
             'journalSummary': {
                 'totalEntries': total_vouchers,
                 'totalDebit': round(total_debit),

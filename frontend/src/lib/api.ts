@@ -2,12 +2,27 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL
   ? `${process.env.NEXT_PUBLIC_API_URL}/api`
   : "/api";
 
-async function fetchJSON<T>(endpoint: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${endpoint}`);
+async function fetchJSON<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
+  const url = new URL(`${BASE_URL}${endpoint}`, window.location.origin);
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      if (v) url.searchParams.set(k, v);
+    });
+  }
+  const res = await fetch(url.toString());
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
   return res.json();
+}
+
+/* ---------- Filter Types ---------- */
+
+export type PeriodType = "ytd" | "yoy_month" | "mom";
+
+export interface FilterParams {
+  period?: PeriodType;
+  month?: string;
 }
 
 /* ---------- Types ---------- */
@@ -75,6 +90,7 @@ export interface BSItem {
   endBal: number;
   beginBal: number;
   change: number;
+  changeRate?: number;
   level: number;
   bold: boolean;
 }
@@ -82,6 +98,11 @@ export interface BSItem {
 export interface MonthlyData {
   current: number[];
   prior: number[];
+}
+
+export interface MonthlyRateData {
+  current: (number | null)[];
+  prior: (number | null)[];
 }
 
 export interface BSTrend {
@@ -101,6 +122,8 @@ export interface SalesAnalysis {
   topCustomerShare: TopShareItem[];
   topIncreaseCustomers: TopItem[];
   topDecreaseCustomers: TopItem[];
+  monthlyRevenue?: MonthlyData;
+  journalEntries?: JournalEntry[];
 }
 
 export interface QuarterlyPL {
@@ -108,12 +131,70 @@ export interface QuarterlyPL {
   rows: { account: string; values: number[]; bold: boolean; highlight: boolean }[];
 }
 
+export interface PLMetricCard {
+  label: string;
+  current: number;
+  prior: number;
+  change: number;
+  changeRate: number;
+  marginLabel?: string;
+  marginValue?: number;
+}
+
+export interface PLSummaryData {
+  metrics: PLMetricCard[];
+  monthlyRevenue: MonthlyData;
+  monthlyOperatingProfit: MonthlyData;
+  grossMarginRate: MonthlyRateData;
+  operatingMarginRate: MonthlyRateData;
+}
+
+export interface PLTrendAccount {
+  account: string;
+  current: (number | null)[];
+  prior: number[];
+}
+
+export interface JournalEntry {
+  date: string;
+  voucherNo: string;
+  account: string;
+  customer: string;
+  memo: string;
+  debit: number;
+  credit: number;
+}
+
 export interface JournalSummary {
   totalEntries: number;
   totalDebit: number;
   totalCredit: number;
+  dailyCredits?: { date: string; amount: number }[];
   topAccountsByCredit: { account: string; amount: number }[];
   topCustomersByCredit: TopShareItem[];
+}
+
+export interface JournalSearchResult {
+  entries: JournalEntry[];
+  totalCount: number;
+}
+
+export interface ScenarioSummaryRow {
+  [key: string]: string | number;
+}
+
+export interface ScenarioDetailRow {
+  [key: string]: string | number;
+}
+
+export interface ScenarioData {
+  title: string;
+  risk: string;
+  count: number;
+  summaryHeaders: string[];
+  summaryRows: ScenarioSummaryRow[];
+  detailHeaders: string[];
+  detailRows: ScenarioDetailRow[];
 }
 
 export interface Scenario1 {
@@ -166,6 +247,12 @@ export interface Scenarios {
   scenario6: Scenario6;
 }
 
+export interface BSAccountDetail {
+  labels: string[];
+  balances: number[];
+  counterparties: { name: string; amount: number }[];
+}
+
 export interface FullData {
   baseDate: string;
   companyName: string;
@@ -186,15 +273,27 @@ export interface FullData {
 
 /* ---------- API Functions ---------- */
 
+function filterToParams(filter?: FilterParams): Record<string, string> | undefined {
+  if (!filter) return undefined;
+  const params: Record<string, string> = {};
+  if (filter.period) params.period = filter.period;
+  if (filter.month) params.month = filter.month;
+  return Object.keys(params).length > 0 ? params : undefined;
+}
+
 export function fetchMeta() {
   return fetchJSON<MetaData>("/meta");
 }
 
-export function fetchSummary() {
-  return fetchJSON<SummaryData>("/summary");
+export function fetchMonths() {
+  return fetchJSON<{ months: string[] }>("/months");
 }
 
-export function fetchPL() {
+export function fetchSummary(filter?: FilterParams) {
+  return fetchJSON<SummaryData>("/summary", filterToParams(filter));
+}
+
+export function fetchPL(filter?: FilterParams) {
   return fetchJSON<{
     plItems: PLItem[];
     monthlyRevenue: MonthlyData;
@@ -204,27 +303,80 @@ export function fetchPL() {
     quarterlyPL: QuarterlyPL;
     salesAnalysis: SalesAnalysis;
     activityMetrics: ActivityMetrics;
-  }>("/pl");
+    plSummary?: PLSummaryData;
+    plTrend?: PLTrendAccount[];
+    grossMarginRate?: MonthlyRateData;
+    operatingMarginRate?: MonthlyRateData;
+  }>("/pl", filterToParams(filter));
 }
 
-export function fetchBS() {
+export function fetchMonthlyPL(filter?: FilterParams) {
+  return fetchJSON<{
+    plSummary: PLSummaryData;
+    plTrend: PLTrendAccount[];
+  }>("/pl/monthly", filterToParams(filter));
+}
+
+export function fetchBS(filter?: FilterParams) {
   return fetchJSON<{
     bsItems: BSItem[];
     bsTrend: BSTrend;
     activityMetrics: ActivityMetrics;
-  }>("/bs");
+    equity?: SummaryKPI;
+    financialRatios?: {
+      labels: string[];
+      currentRatio: number[];
+      quickRatio: number[];
+      debtRatio: number[];
+    };
+  }>("/bs", filterToParams(filter));
 }
 
-export function fetchSales() {
-  return fetchJSON<SalesAnalysis>("/sales");
+export function fetchBSAccountDetail(account: string, filter?: FilterParams) {
+  const params = filterToParams(filter) || {};
+  params.account = account;
+  return fetchJSON<BSAccountDetail>("/bs/account", params);
 }
 
-export function fetchJournal() {
-  return fetchJSON<JournalSummary>("/journal");
+export function fetchSales(filter?: FilterParams) {
+  return fetchJSON<SalesAnalysis>("/sales", filterToParams(filter));
 }
 
-export function fetchScenarios() {
-  return fetchJSON<Scenarios>("/scenarios");
+export function fetchJournal(filter?: FilterParams & { startDate?: string; endDate?: string; target?: string }) {
+  const params: Record<string, string> = {};
+  if (filter?.period) params.period = filter.period;
+  if (filter?.month) params.month = filter.month;
+  if (filter?.startDate) params.startDate = filter.startDate;
+  if (filter?.endDate) params.endDate = filter.endDate;
+  if (filter?.target) params.target = filter.target;
+  return fetchJSON<JournalSummary>("/journal", Object.keys(params).length > 0 ? params : undefined);
+}
+
+export function fetchJournalSearch(params: {
+  startDate?: string;
+  endDate?: string;
+  account?: string;
+  customer?: string;
+  memo?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const p: Record<string, string> = {};
+  Object.entries(params).forEach(([k, v]) => {
+    if (v != null && v !== "") p[k] = String(v);
+  });
+  return fetchJSON<JournalSearchResult>("/journal/search", Object.keys(p).length > 0 ? p : undefined);
+}
+
+export function fetchScenarios(filter?: FilterParams & { dateFrom?: string; dateTo?: string; amountMin?: number; amountMax?: number }) {
+  const params: Record<string, string> = {};
+  if (filter?.period) params.period = filter.period;
+  if (filter?.month) params.month = filter.month;
+  if (filter?.dateFrom) params.dateFrom = filter.dateFrom;
+  if (filter?.dateTo) params.dateTo = filter.dateTo;
+  if (filter?.amountMin != null) params.amountMin = String(filter.amountMin);
+  if (filter?.amountMax != null) params.amountMax = String(filter.amountMax);
+  return fetchJSON<Scenarios>("/scenarios", Object.keys(params).length > 0 ? params : undefined);
 }
 
 export function fetchFullData() {
