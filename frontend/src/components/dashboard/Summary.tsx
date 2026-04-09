@@ -17,6 +17,7 @@ import {
   formatChangeRate,
   changeColor,
   createSparklineSVG,
+  formatMonthLabel,
 } from "@/lib/utils";
 
 /* ---------- Types ---------- */
@@ -24,8 +25,17 @@ import {
 interface SummaryProps {
   period: PeriodType;
   month: string;
+  onPeriodChange: (p: PeriodType) => void;
+  onMonthChange: (m: string) => void;
+  availableMonths: string[];
   onNavigate: (tab: "summary" | "pl" | "bs" | "journal" | "scenario") => void;
 }
+
+const PERIOD_OPTIONS: { label: string; value: PeriodType }[] = [
+  { label: "전년누적", value: "ytd" },
+  { label: "전년동월", value: "yoy_month" },
+  { label: "전월비교", value: "mom" },
+];
 
 /* ---------- Sub-components ---------- */
 
@@ -38,6 +48,7 @@ function KPICard({
   sparkData,
   sparkColor,
   onClick,
+  tooltip,
 }: {
   label: string;
   current: number;
@@ -47,6 +58,7 @@ function KPICard({
   sparkData?: number[] | null;
   sparkColor?: string;
   onClick?: () => void;
+  tooltip?: string;
 }) {
   const sparkSVG =
     sparkData && sparkColor
@@ -56,18 +68,26 @@ function KPICard({
   return (
     <div
       onClick={onClick}
+      title={tooltip}
       className={`bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5 ${
-        onClick ? "cursor-pointer hover:shadow-md transition-shadow" : ""
+        onClick ? "cursor-pointer hover:shadow-md transition-shadow group" : ""
       }`}
       style={{ borderTopWidth: 3, borderTopColor: borderColor }}
     >
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
-      <div className="text-2xl font-bold text-[#2D2D2D] mb-1">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-semibold text-[#464646]">{label}</span>
+        {onClick && (
+          <span className="text-[10px] text-[#ABABAB] opacity-0 group-hover:opacity-100 transition-opacity">
+            클릭하여 상세 보기 &rarr;
+          </span>
+        )}
+      </div>
+      <div className="text-2xl font-bold text-[#2D2D2D] mb-1 tabular-nums">
         {formatMillions(current)}
         <span className="text-xs font-normal text-gray-400 ml-1">백만</span>
       </div>
       <div className="flex items-center gap-3 text-xs mb-2">
-        <span className="text-gray-400">전기: {formatMillions(prior)}</span>
+        <span className="text-gray-400 tabular-nums">전기: {formatMillions(prior)}</span>
         <span className={`font-semibold ${changeColor(changeRate)}`}>
           {formatChangeRate(changeRate)}
         </span>
@@ -112,6 +132,7 @@ function TopItemsCard({
                 </span>
                 <span className="text-right font-medium tabular-nums whitespace-nowrap">
                   {formatMillions(item.amount)}
+                  <span className="text-[10px] text-gray-400 ml-0.5">백만</span>
                 </span>
               </div>
               <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -176,7 +197,14 @@ function ScenarioCountCard({
 
 /* ---------- Main Component ---------- */
 
-export default function Summary({ period, month, onNavigate }: SummaryProps) {
+export default function Summary({
+  period,
+  month,
+  onPeriodChange,
+  onMonthChange,
+  availableMonths,
+  onNavigate,
+}: SummaryProps) {
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [plItems, setPlItems] = useState<PLItem[]>([]);
   const [bsItems, setBsItems] = useState<BSItem[]>([]);
@@ -232,9 +260,49 @@ export default function Summary({ period, month, onNavigate }: SummaryProps) {
 
   return (
     <div className="space-y-6">
-      {/* Section: Easy View Summary */}
-      <div className="text-sm font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
-        Easy View Summary
+      {/* Filter bar - sticky below main tabs */}
+      <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-2 flex flex-wrap items-center justify-between gap-2 sticky top-[104px] z-30">
+        <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-[#7D7D7D] font-medium">기준 연월</span>
+            <select
+              value={month}
+              onChange={(e) => onMonthChange(e.target.value)}
+              className="border border-gray-300 rounded px-2 py-1.5 bg-white text-xs"
+            >
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>
+                  {formatMonthLabel(m)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[#7D7D7D] font-medium">분석대상</span>
+            <div className="flex border border-gray-300 rounded overflow-hidden">
+              {PERIOD_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => onPeriodChange(opt.value)}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    period === opt.value
+                      ? "bg-[#D04A02] text-white"
+                      : "bg-white text-[#464646] hover:bg-gray-50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-[#7D7D7D] font-medium">비교대상 /재무상태</span>
+          <div className="flex border border-gray-300 rounded overflow-hidden">
+            <button className="px-3 py-1.5 text-xs font-medium bg-[#2D2D2D] text-white">연초</button>
+            <button className="px-3 py-1.5 text-xs font-medium bg-white text-[#464646] hover:bg-gray-50">월초</button>
+          </div>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -246,6 +314,7 @@ export default function Summary({ period, month, onNavigate }: SummaryProps) {
           sparkData={monthlyRevenue?.current}
           sparkColor="#D04A02"
           onClick={() => onNavigate("pl")}
+          tooltip="클릭하여 손익분석으로 이동"
         />
         <KPICard
           label="영업이익"
@@ -254,40 +323,43 @@ export default function Summary({ period, month, onNavigate }: SummaryProps) {
           sparkData={monthlyOP?.current}
           sparkColor="#E0301E"
           onClick={() => onNavigate("pl")}
+          tooltip="클릭하여 손익분석으로 이동"
         />
         <KPICard
           label="자산"
           {...summary.assets}
           borderColor="#A05E37"
           onClick={() => onNavigate("bs")}
+          tooltip="클릭하여 재무상태분석으로 이동"
         />
         <KPICard
           label="부채"
           {...summary.liabilities}
           borderColor="#D93954"
           onClick={() => onNavigate("bs")}
+          tooltip="클릭하여 재무상태분석으로 이동"
         />
       </div>
 
       {/* Top Items */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <TopItemsCard
-          title="매출액 증가 TOP3 거래처"
+          title="매출액 증가액 상위 3개 거래처"
           items={summary.revenueTopCustomers}
           borderColor="#D04A02"
         />
         <TopItemsCard
-          title="비용 증가 TOP3 계정"
+          title="비용 증가액 상위 3개 계정"
           items={summary.expenseTopAccounts}
           borderColor="#E0301E"
         />
         <TopItemsCard
-          title="자산 증가 TOP3"
+          title="자산 증가액 상위 3개 계정"
           items={summary.assetTopAccounts}
           borderColor="#A05E37"
         />
         <TopItemsCard
-          title="부채 증가 TOP3"
+          title="부채 증가액 상위 3개 계정"
           items={summary.liabilityTopAccounts}
           borderColor="#D93954"
         />
@@ -295,146 +367,124 @@ export default function Summary({ period, month, onNavigate }: SummaryProps) {
 
       {/* Indicators Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Profit Indicators */}
         <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
           <div className="text-sm font-semibold text-[#2D2D2D] mb-4 border-l-[3px] border-[#D04A02] pl-2">
             손익지표
           </div>
           <div className="grid grid-cols-3 gap-4">
-            <IndicatorItem
-              label="매출총이익률"
-              value={summary.profitIndicators.grossMargin}
-              color="#D04A02"
-            />
-            <IndicatorItem
-              label="영업이익률"
-              value={summary.profitIndicators.operatingMargin}
-              color="#E0301E"
-            />
-            <IndicatorItem
-              label="당기손익률"
-              value={summary.profitIndicators.netMargin}
-              color="#A05E37"
-            />
+            <IndicatorItem label="매출총이익률" value={summary.profitIndicators.grossMargin} color="#D04A02" />
+            <IndicatorItem label="영업이익률" value={summary.profitIndicators.operatingMargin} color="#E0301E" />
+            <IndicatorItem label="당기손익률" value={summary.profitIndicators.netMargin} color="#A05E37" />
           </div>
         </div>
-
-        {/* Liquidity Indicators */}
         <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
           <div className="text-sm font-semibold text-[#2D2D2D] mb-4 border-l-[3px] border-[#D04A02] pl-2">
             유동성지표
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <IndicatorItem
-              label="부채비율"
-              value={summary.liquidityIndicators.debtRatio}
-              color="#D93954"
-            />
-            <IndicatorItem
-              label="유동비율"
-              value={summary.liquidityIndicators.currentRatio}
-              color="#D04A02"
-            />
+            <IndicatorItem label="부채비율" value={summary.liquidityIndicators.debtRatio} color="#D93954" />
+            <IndicatorItem label="유동비율" value={summary.liquidityIndicators.currentRatio} color="#D04A02" />
           </div>
         </div>
       </div>
 
-      {/* PL Summary Table */}
-      <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
-        <div className="text-sm font-semibold text-[#2D2D2D] mb-4 border-l-[3px] border-[#D04A02] pl-2">
-          손익항목
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-[#2D2D2D] text-white">
-                <th className="text-left px-3 py-2 font-medium">공시용계정</th>
-                <th className="text-right px-3 py-2 font-medium">당기</th>
-                <th className="text-right px-3 py-2 font-medium">전기</th>
-                <th className="text-right px-3 py-2 font-medium">증감률</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plItems
-                .filter((item) => item.level === 0)
-                .map((item, i) => (
-                  <tr
-                    key={i}
-                    className={`border-b border-gray-100 ${
-                      item.highlight ? "bg-orange-50" : ""
-                    } ${item.bold ? "font-semibold" : ""}`}
-                  >
-                    <td className="px-3 py-2">{item.account}</td>
-                    <td className="text-right px-3 py-2 tabular-nums">
-                      {formatMillions(item.current)}
-                    </td>
-                    <td className="text-right px-3 py-2 tabular-nums">
-                      {formatMillions(item.prior)}
-                    </td>
-                    <td
-                      className={`text-right px-3 py-2 tabular-nums ${changeColor(
-                        item.changeRate
-                      )}`}
+      {/* PL & BS Tables side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* PL Summary Table */}
+        <div
+          className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => onNavigate("pl")}
+        >
+          <div className="text-sm font-semibold text-[#2D2D2D] mb-4 border-l-[3px] border-[#D04A02] pl-2">
+            손익항목
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-[#2D2D2D] text-white">
+                  <th className="text-left px-3 py-2 font-medium w-[30%]">공시용계정</th>
+                  <th className="text-right px-3 py-2 font-medium w-[25%]">당기</th>
+                  <th className="text-right px-3 py-2 font-medium w-[25%]">전기</th>
+                  <th className="text-right px-3 py-2 font-medium w-[20%]">증감률</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plItems
+                  .filter((item) => item.level === 0)
+                  .map((item, i) => (
+                    <tr
+                      key={i}
+                      className={`border-b border-gray-100 ${
+                        item.highlight ? "bg-orange-50" : ""
+                      } ${item.bold ? "font-semibold" : ""}`}
                     >
-                      {formatChangeRate(item.changeRate)}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+                      <td className="px-3 py-2 text-left">{item.account}</td>
+                      <td className="text-right px-3 py-2 tabular-nums">
+                        {item.current != null ? Math.round(item.current).toLocaleString("ko-KR") : "-"}
+                      </td>
+                      <td className="text-right px-3 py-2 tabular-nums">
+                        {item.prior != null ? Math.round(item.prior).toLocaleString("ko-KR") : "-"}
+                      </td>
+                      <td className={`text-right px-3 py-2 tabular-nums ${changeColor(item.changeRate)}`}>
+                        {formatChangeRate(item.changeRate)}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      {/* BS Summary Table */}
-      <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
-        <div className="text-sm font-semibold text-[#2D2D2D] mb-4 border-l-[3px] border-[#D04A02] pl-2">
-          재무항목
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-[#2D2D2D] text-white">
-                <th className="text-left px-3 py-2 font-medium">분류</th>
-                <th className="text-right px-3 py-2 font-medium">기말</th>
-                <th className="text-right px-3 py-2 font-medium">기초</th>
-                <th className="text-right px-3 py-2 font-medium">증감률</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bsItems
-                .filter((item) => item.level <= 1)
-                .map((item, i) => (
-                  <tr
-                    key={i}
-                    className={`border-b border-gray-100 ${
-                      item.bold ? "font-semibold" : ""
-                    }`}
-                  >
-                    <td
-                      className="px-3 py-2"
-                      style={{ paddingLeft: 12 + item.level * 16 }}
+        {/* BS Summary Table */}
+        <div
+          className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => onNavigate("bs")}
+        >
+          <div className="text-sm font-semibold text-[#2D2D2D] mb-4 border-l-[3px] border-[#D04A02] pl-2">
+            재무항목
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-[#2D2D2D] text-white">
+                  <th className="text-left px-3 py-2 font-medium w-[25%]">분류</th>
+                  <th className="text-right px-3 py-2 font-medium w-[27%]">기말</th>
+                  <th className="text-right px-3 py-2 font-medium w-[27%]">기초</th>
+                  <th className="text-right px-3 py-2 font-medium w-[21%]">증감률</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bsItems
+                  .filter((item) => item.level <= 1)
+                  .map((item, i) => (
+                    <tr
+                      key={i}
+                      className={`border-b border-gray-100 ${
+                        item.bold && item.level === 0 ? "font-semibold bg-[#F5F5F5]" : item.bold ? "font-semibold" : ""
+                      }`}
                     >
-                      {item.category}
-                    </td>
-                    <td className="text-right px-3 py-2 tabular-nums">
-                      {formatMillions(item.endBal)}
-                    </td>
-                    <td className="text-right px-3 py-2 tabular-nums">
-                      {formatMillions(item.beginBal)}
-                    </td>
-                    <td
-                      className={`text-right px-3 py-2 tabular-nums ${changeColor(
-                        item.changeRate ?? item.change
-                      )}`}
-                    >
-                      {item.changeRate != null
-                        ? formatChangeRate(item.changeRate)
-                        : formatMillions(item.change)}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+                      <td
+                        className="px-3 py-2 text-left"
+                        style={{ paddingLeft: 12 + item.level * 16 }}
+                      >
+                        {item.category}
+                      </td>
+                      <td className="text-right px-3 py-2 tabular-nums">
+                        {item.endBal != null ? Math.round(item.endBal).toLocaleString("ko-KR") : "-"}
+                      </td>
+                      <td className="text-right px-3 py-2 tabular-nums">
+                        {item.beginBal != null ? Math.round(item.beginBal).toLocaleString("ko-KR") : "-"}
+                      </td>
+                      <td className={`text-right px-3 py-2 tabular-nums ${changeColor(item.changeRate ?? 0)}`}>
+                        {item.changeRate != null
+                          ? formatChangeRate(item.changeRate)
+                          : "-"}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 """
 PwC Easy View 3.0 - FastAPI Backend
-Serves financial data from CSV files as REST API endpoints.
+Serves financial data from SQLite database as REST API endpoints.
 """
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
-from typing import Optional
+from fastapi.responses import JSONResponse
+from typing import Optional, List
 import os
 import shutil
 
-from data_processor import DataProcessor
+from database import Database
+from auth import auth_db, verify_jwt
 
 app = FastAPI(
     title="Easy View API",
@@ -24,7 +25,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "http://localhost:3003",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3003",
         os.environ.get("FRONTEND_URL", ""),
         "*",
     ],
@@ -40,169 +43,379 @@ ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 os.makedirs(INPUT_DIR, exist_ok=True)
 os.makedirs(ASSETS_DIR, exist_ok=True)
 
-# Global data processor
-processor = DataProcessor(INPUT_DIR)
+# Global database
+db = Database(BASE_DIR)
+
+
+# ===== Auth Dependency =====
+async def get_current_user(authorization: Optional[str] = Header(None)):
+    """Extract and verify JWT token from Authorization header."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="인증이 필요합니다.")
+    token = authorization.split(" ", 1)[1]
+    payload = verify_jwt(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="유효하지 않은 토큰입니다.")
+    return payload
 
 
 @app.on_event("startup")
 async def startup():
-    """Load data on startup if CSV files exist."""
-    processor.try_load()
+    """Load data on startup from existing DB or CSV files."""
+    db.try_load(INPUT_DIR)
+
+
+# ===== Auth Endpoints =====
+@app.post("/api/auth/login")
+async def login(body: dict):
+    """User login with email and password."""
+    email = body.get("email", "")
+    password = body.get("password", "")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="이메일과 비밀번호를 입력해주세요.")
+
+    result = auth_db.login(email, password)
+    if not result:
+        raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
+
+    return result
+
+
+@app.get("/api/auth/me")
+async def get_me(user=Depends(get_current_user)):
+    """Get current user info and companies."""
+    user_info = auth_db.get_user_by_id(user["user_id"])
+    if not user_info:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    companies = auth_db.get_user_companies(user["user_id"])
+    return {"user": user_info, "companies": companies}
+
+
+@app.get("/api/auth/companies")
+async def get_companies(user=Depends(get_current_user)):
+    """Get companies accessible by the current user."""
+    return {"companies": auth_db.get_user_companies(user["user_id"])}
+
+
+@app.get("/api/reports")
+async def get_reports(user=Depends(get_current_user)):
+    """Get all reports accessible by the current user."""
+    reports = auth_db.get_user_reports(user["user_id"])
+    return {"reports": reports}
 
 
 # ===== Health Check =====
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "loaded": processor.is_loaded}
+    return {"status": "ok", "loaded": db.is_loaded}
 
 
 # ===== Full Financial Data =====
 @app.get("/api/data")
 async def get_financial_data(
     period: Optional[str] = Query("ytd", description="비교기간: ytd(전년누적), yoy_month(전년동월), mom(전월비교)"),
-    month: Optional[str] = Query("2025-09", description="기준월 (예: 2025-09)"),
+    month: Optional[str] = Query(None, description="기준월 (예: 2025-09)"),
 ):
-    """Return the complete financial dataset with period filtering metadata."""
-    if not processor.is_loaded:
+    if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터가 로드되지 않았습니다. CSV 파일을 업로드해주세요.")
-    return {
-        **processor.data,
-        "filter": {"period": period, "month": month},
-    }
+    if not month:
+        months = db.get_available_months()
+        month = months[-1] if months else "2025-09"
+    data = db.get_full_data(period, month)
+    data["filter"] = {"period": period, "month": month}
+    return data
 
 
 # ===== Available Months =====
 @app.get("/api/months")
 async def get_months():
-    """Return list of available months from the JE data."""
-    if not processor.is_loaded:
+    if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
-    return {"months": processor.data.get("availableMonths", [])}
+    return {"months": db.get_available_months()}
 
 
 # ===== Summary =====
 @app.get("/api/summary")
 async def get_summary(
-    period: Optional[str] = Query("ytd", description="비교기간: ytd(전년누적), yoy_month(전년동월), mom(전월비교)"),
-    month: Optional[str] = Query("2025-09", description="기준월 (예: 2025-09)"),
+    period: Optional[str] = Query("ytd", description="비교기간"),
+    month: Optional[str] = Query(None, description="기준월"),
 ):
-    if not processor.is_loaded:
+    if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
-    return {
-        **processor.data.get("summary", {}),
-        "filter": {"period": period, "month": month},
-    }
+    if not month:
+        months = db.get_available_months()
+        month = months[-1] if months else "2025-09"
+    summary = db.get_summary_data(period, month)
+    summary["filter"] = {"period": period, "month": month}
+    return summary
 
 
 # ===== PL (Income Statement) =====
 @app.get("/api/pl")
 async def get_pl(
-    period: Optional[str] = Query("ytd", description="비교기간: ytd(전년누적), yoy_month(전년동월), mom(전월비교)"),
-    month: Optional[str] = Query("2025-09", description="기준월 (예: 2025-09)"),
+    period: Optional[str] = Query("ytd", description="비교기간"),
+    month: Optional[str] = Query(None, description="기준월"),
 ):
-    if not processor.is_loaded:
+    if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
-    return {
-        "plItems": processor.data.get("plItems", []),
-        "monthlyRevenue": processor.data.get("monthlyRevenue", {}),
-        "monthlyOperatingProfit": processor.data.get("monthlyOperatingProfit", {}),
-        "monthlyNetIncome": processor.data.get("monthlyNetIncome", {}),
-        "monthlyGrossProfit": processor.data.get("monthlyGrossProfit", {}),
-        "quarterlyPL": processor.data.get("quarterlyPL", {}),
-        "monthlyPL": processor.data.get("monthlyPL", {}),
-        "filter": {"period": period, "month": month},
-    }
+    if not month:
+        months = db.get_available_months()
+        month = months[-1] if months else "2025-09"
+    pl = db.get_pl_data(period, month)
+    pl["filter"] = {"period": period, "month": month}
+    return pl
 
 
 # ===== BS (Balance Sheet) =====
 @app.get("/api/bs")
-async def get_bs():
-    if not processor.is_loaded:
+async def get_bs(
+    period: Optional[str] = Query("ytd", description="비교기간"),
+    month: Optional[str] = Query(None, description="기준월"),
+):
+    if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
-    return {
-        "bsItems": processor.data.get("bsItems", []),
-        "bsTrend": processor.data.get("bsTrend", {}),
-        "activityMetrics": processor.data.get("activityMetrics", {}),
-    }
+    if not month:
+        months = db.get_available_months()
+        month = months[-1] if months else "2025-09"
+    bs = db.get_bs_data(period, month)
+    return bs
 
 
 # ===== Sales Analysis =====
 @app.get("/api/sales")
-async def get_sales():
-    if not processor.is_loaded:
+async def get_sales(
+    period: Optional[str] = Query("ytd", description="비교기간"),
+    month: Optional[str] = Query(None, description="기준월"),
+):
+    if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
-    return processor.data.get("salesAnalysis", {})
+    if not month:
+        months = db.get_available_months()
+        month = months[-1] if months else "2025-09"
+    return db.get_sales_data(period, month)
 
 
 # ===== Journal =====
 @app.get("/api/journal")
-async def get_journal():
-    if not processor.is_loaded:
+async def get_journal(
+    period: Optional[str] = Query("ytd", description="비교기간"),
+    month: Optional[str] = Query(None, description="기준월"),
+):
+    if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
-    return processor.data.get("journalSummary", {})
+    if not month:
+        months = db.get_available_months()
+        month = months[-1] if months else "2025-09"
+    return db.get_journal_data(period, month)
 
 
 # ===== Scenarios =====
 @app.get("/api/scenarios")
-async def get_scenarios():
-    if not processor.is_loaded:
+async def get_scenarios(
+    period: Optional[str] = Query("ytd", description="비교기간"),
+    month: Optional[str] = Query(None, description="기준월"),
+):
+    if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
-    return processor.data.get("scenarios", {})
+    if not month:
+        months = db.get_available_months()
+        month = months[-1] if months else "2025-09"
+    return db.get_scenario_data(period, month)
 
 
 @app.get("/api/scenarios/{scenario_id}")
-async def get_scenario(scenario_id: str):
-    if not processor.is_loaded:
+async def get_scenario(
+    scenario_id: str,
+    period: Optional[str] = Query("ytd"),
+    month: Optional[str] = Query(None),
+):
+    if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
-    scenarios = processor.data.get("scenarios", {})
+    if not month:
+        months = db.get_available_months()
+        month = months[-1] if months else "2025-09"
+    scenarios = db.get_scenario_data(period, month)
     if scenario_id not in scenarios:
         raise HTTPException(status_code=404, detail=f"시나리오 '{scenario_id}' 없음")
     return scenarios[scenario_id]
 
 
-# ===== CSV Upload =====
+# ===== Journal Search =====
+@app.get("/api/journal/search")
+async def journal_search(
+    startDate: Optional[str] = Query("2024-01-01"),
+    endDate: Optional[str] = Query("2025-09-30"),
+    account: Optional[str] = Query(""),
+    customer: Optional[str] = Query(""),
+    memo: Optional[str] = Query(""),
+    page: Optional[int] = Query(1),
+    pageSize: Optional[int] = Query(50),
+):
+    if not db.is_loaded:
+        raise HTTPException(status_code=404, detail="데이터 미로드")
+    return db.get_journal_search(startDate, endDate, account, customer, memo, page, pageSize)
+
+
+# ===== BS Account Detail =====
+@app.get("/api/bs/account")
+async def bs_account_detail(
+    account: str = Query(..., description="계정명"),
+    period: Optional[str] = Query("ytd"),
+    month: Optional[str] = Query(None),
+):
+    if not db.is_loaded:
+        raise HTTPException(status_code=404, detail="데이터 미로드")
+    if not month:
+        months = db.get_available_months()
+        month = months[-1] if months else "2025-09"
+    return db.get_bs_account_detail(account, period, month)
+
+
+# ===== PL Journal Entries (drill-down) =====
+@app.get("/api/pl/journal")
+async def pl_journal_entries(
+    monthKey: str = Query(..., description="월 (예: 2025-07)"),
+    disclosure: Optional[str] = Query(""),
+    limit: Optional[int] = Query(50),
+):
+    if not db.is_loaded:
+        raise HTTPException(status_code=404, detail="데이터 미로드")
+    return db.get_pl_journal_entries(monthKey, disclosure, limit)
+
+
+# ===== CSV Upload (legacy - no auth) =====
 @app.post("/api/upload")
 async def upload_csv(
     tb_file: UploadFile = File(..., description="시산표 CSV"),
     je_file: UploadFile = File(..., description="전표 CSV"),
 ):
-    """Upload TB and JE CSV files and regenerate data."""
+    """Upload TB and JE CSV files and rebuild SQLite database."""
     try:
-        # Save TB file
         tb_path = os.path.join(INPUT_DIR, "TB.csv")
         with open(tb_path, "wb") as f:
             shutil.copyfileobj(tb_file.file, f)
 
-        # Save JE file
         je_path = os.path.join(INPUT_DIR, "JE.csv")
         with open(je_path, "wb") as f:
             shutil.copyfileobj(je_file.file, f)
 
-        # Reprocess
-        processor.load(tb_path, je_path)
+        # Rebuild DB
+        db.import_csv(tb_path, je_path)
 
+        # Quick validation
+        pl = db.get_pl_data()
         return {
             "status": "success",
             "message": "데이터가 성공적으로 업로드 및 처리되었습니다.",
             "summary": {
-                "revenue": processor.data["summary"]["revenue"]["current"],
-                "plItems": len(processor.data["plItems"]),
-                "bsItems": len(processor.data["bsItems"]),
+                "revenue": pl['revenue']['current'],
+                "plItems": len(pl['plItems']),
             }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"처리 실패: {str(e)}")
 
 
+# ===== Enhanced Upload (with auth & 4 file categories) =====
+@app.post("/api/upload/v2")
+async def upload_files(
+    company_code: str = Query(..., description="회사 코드"),
+    year: str = Query(..., description="결산연도"),
+    month: str = Query(..., description="결산월"),
+    je_file: UploadFile = File(..., description="분개장(JE) 또는 계정별원장(GL) - 필수"),
+    tb_file: UploadFile = File(..., description="시산표(TB) - 필수"),
+    bs_file: Optional[UploadFile] = None,
+    etc_file: Optional[UploadFile] = None,
+    user=Depends(get_current_user),
+):
+    """Upload financial data files with company and period context."""
+    import traceback
+
+    # Verify company access
+    if not auth_db.verify_company_access(user["user_id"], company_code):
+        raise HTTPException(status_code=403, detail="해당 회사에 대한 접근 권한이 없습니다.")
+
+    try:
+        # Create company-specific directory
+        company_dir = os.path.join(INPUT_DIR, company_code, f"{year}-{month.zfill(2)}")
+        os.makedirs(company_dir, exist_ok=True)
+
+        uploaded_files = []
+
+        # 1. JE/GL (required)
+        je_path = os.path.join(company_dir, "JE.csv")
+        with open(je_path, "wb") as f:
+            shutil.copyfileobj(je_file.file, f)
+        uploaded_files.append({"type": "JE/GL", "name": je_file.filename, "status": "uploaded"})
+
+        # 2. TB (required)
+        tb_path = os.path.join(company_dir, "TB.csv")
+        with open(tb_path, "wb") as f:
+            shutil.copyfileobj(tb_file.file, f)
+        uploaded_files.append({"type": "TB", "name": tb_file.filename, "status": "uploaded"})
+
+        # 3. BS/PL (optional)
+        if bs_file and bs_file.filename:
+            bs_path = os.path.join(company_dir, "BS_PL.csv")
+            with open(bs_path, "wb") as f:
+                shutil.copyfileobj(bs_file.file, f)
+            uploaded_files.append({"type": "BS/PL", "name": bs_file.filename, "status": "uploaded"})
+
+        # 4. Others (optional)
+        if etc_file and etc_file.filename:
+            etc_path = os.path.join(company_dir, f"ETC_{etc_file.filename}")
+            with open(etc_path, "wb") as f:
+                shutil.copyfileobj(etc_file.file, f)
+            uploaded_files.append({"type": "기타", "name": etc_file.filename, "status": "uploaded"})
+
+        # Also copy to main input dir for current processing
+        shutil.copy2(os.path.join(company_dir, "TB.csv"), os.path.join(INPUT_DIR, "TB.csv"))
+        shutil.copy2(os.path.join(company_dir, "JE.csv"), os.path.join(INPUT_DIR, "JE.csv"))
+
+        # Rebuild DB
+        db.import_csv(
+            os.path.join(INPUT_DIR, "TB.csv"),
+            os.path.join(INPUT_DIR, "JE.csv"),
+        )
+
+        pl = db.get_pl_data()
+        revenue = pl["revenue"]["current"]
+        pl_items_count = len(pl["plItems"])
+
+        # Save report record
+        # Look up company_id and name
+        companies = auth_db.get_user_companies(user["user_id"])
+        comp = next((c for c in companies if c["code"] == company_code), None)
+        if comp:
+            auth_db.save_report(
+                company_id=comp["id"], company_code=company_code,
+                company_name=comp["name"], year=int(year), month=int(month),
+                user_id=user["user_id"], user_name=user.get("name", ""),
+                revenue=revenue, pl_items=pl_items_count,
+            )
+
+        return {
+            "status": "success",
+            "message": f"{company_code} 회사의 {year}년 {month}월 데이터가 성공적으로 처리되었습니다.",
+            "company": company_code,
+            "period": f"{year}-{month.zfill(2)}",
+            "files": uploaded_files,
+            "summary": {
+                "revenue": revenue,
+                "plItems": pl_items_count,
+            },
+        }
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"처리 실패: {str(e)}")
+
+
 # ===== Meta Info =====
 @app.get("/api/meta")
 async def get_meta():
-    if not processor.is_loaded:
+    if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
-    return {
-        "baseDate": processor.data.get("baseDate", ""),
-        "companyName": processor.data.get("companyName", ""),
-    }
+    return db.get_meta()
 
 
 if __name__ == "__main__":

@@ -38,7 +38,7 @@ export default function JournalAnalysis({
   return (
     <div className="space-y-6">
       {/* Sub-nav */}
-      <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-2 flex flex-wrap items-center gap-2">
+      <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-2 flex flex-wrap items-center gap-2 sticky top-[104px] z-30">
         <div className="flex gap-1">
           {SUB_TABS.map((tab, i) => (
             <button

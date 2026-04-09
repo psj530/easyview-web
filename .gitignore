@@ -19,3 +19,6 @@ Thumbs.db
 # Build
 frontend/out/
 *.log
+*.db
+docs/NotoSansKR.ttf
+docs/*.pdf

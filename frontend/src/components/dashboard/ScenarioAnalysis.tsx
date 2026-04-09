@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { fetchScenarios, type Scenarios, type PeriodType } from "@/lib/api";
-import { formatNumber, formatMillions } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils";
 
 /* ---------- Types ---------- */
 
@@ -44,6 +44,28 @@ const SCENARIO_TABS = [
   },
 ];
 
+/* ---------- Date Helpers ---------- */
+
+function getDefaultDateRange(month: string): { from3m: string; fromMonth: string; to: string } {
+  // month = "2025-09"
+  const [y, m] = month.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const to = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+  // Current month start
+  const fromMonth = `${y}-${String(m).padStart(2, "0")}-01`;
+
+  // 3 months back
+  let m3 = m - 2;
+  let y3 = y;
+  if (m3 <= 0) { m3 += 12; y3 -= 1; }
+  const from3m = `${y3}-${String(m3).padStart(2, "0")}-01`;
+
+  return { from3m, fromMonth, to };
+}
+
+type FilterMode = "3m" | "month" | "all";
+
 /* ---------- Main Component ---------- */
 
 export default function ScenarioAnalysis({
@@ -55,11 +77,23 @@ export default function ScenarioAnalysis({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Date range and amount filters
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  // Filter state
+  const defaults = useMemo(() => getDefaultDateRange(month), [month]);
+  const [filterMode, setFilterMode] = useState<FilterMode>("3m");
+  const [dateFrom, setDateFrom] = useState(defaults.from3m);
+  const [dateTo, setDateTo] = useState(defaults.to);
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
+  const [autoNarrowed, setAutoNarrowed] = useState(false);
+
+  // Reset dates when month changes
+  useEffect(() => {
+    const d = getDefaultDateRange(month);
+    setDateFrom(d.from3m);
+    setDateTo(d.to);
+    setFilterMode("3m");
+    setAutoNarrowed(false);
+  }, [month]);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -67,22 +101,57 @@ export default function ScenarioAnalysis({
     fetchScenarios({
       period,
       month,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
+      dateFrom: filterMode === "all" ? undefined : dateFrom || undefined,
+      dateTo: filterMode === "all" ? undefined : dateTo || undefined,
       amountMin: amountMin ? Number(amountMin) : undefined,
       amountMax: amountMax ? Number(amountMax) : undefined,
     })
-      .then(setScenarios)
+      .then((data) => {
+        setScenarios(data);
+
+        // Auto-narrow: if 3m filter yields 100+ results, switch to current month
+        if (filterMode === "3m" && !autoNarrowed) {
+          const scenarioKey = SCENARIO_TABS[activeTab].key;
+          const scenarioData = data[scenarioKey];
+          let count = 0;
+          if ("count" in scenarioData) count = (scenarioData as { count: number }).count;
+          else if ("entries" in scenarioData) count = ((scenarioData as { entries: unknown[] }).entries || []).length;
+          else if ("exceptions" in scenarioData) count = ((scenarioData as { exceptions: unknown[] }).exceptions || []).length;
+
+          if (count > 100) {
+            const d = getDefaultDateRange(month);
+            setDateFrom(d.fromMonth);
+            setFilterMode("month");
+            setAutoNarrowed(true);
+          }
+        }
+      })
       .catch((err) => {
         console.error(err);
         setError("데이터를 불러오는 중 오류가 발생했습니다.");
       })
       .finally(() => setLoading(false));
-  }, [period, month, dateFrom, dateTo, amountMin, amountMax]);
+  }, [period, month, dateFrom, dateTo, amountMin, amountMax, filterMode, activeTab, autoNarrowed]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const handleFilterMode = (mode: FilterMode) => {
+    const d = getDefaultDateRange(month);
+    setFilterMode(mode);
+    setAutoNarrowed(true); // prevent auto-narrowing after manual change
+    if (mode === "3m") {
+      setDateFrom(d.from3m);
+      setDateTo(d.to);
+    } else if (mode === "month") {
+      setDateFrom(d.fromMonth);
+      setDateTo(d.to);
+    } else {
+      setDateFrom("");
+      setDateTo("");
+    }
+  };
 
   if (loading) {
     return (
@@ -118,12 +187,12 @@ export default function ScenarioAnalysis({
   return (
     <div className="space-y-6">
       {/* Scenario tabs */}
-      <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-2">
+      <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-2 sticky top-[104px] z-30">
         <div className="flex flex-wrap gap-1">
           {SCENARIO_TABS.map((tab, i) => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(i)}
+              onClick={() => { setActiveTab(i); setAutoNarrowed(false); }}
               className={`px-3 py-2 text-xs rounded font-medium transition-colors ${
                 activeTab === i
                   ? "bg-[#2D2D2D] text-white"
@@ -136,21 +205,57 @@ export default function ScenarioAnalysis({
         </div>
       </div>
 
-      {/* Date range and amount filters */}
+      {/* Date range, amount filters, and quick filter buttons */}
       <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-4 flex flex-wrap items-center gap-3">
+        {/* Quick filter buttons */}
+        <div className="flex items-center gap-1 mr-2">
+          <button
+            onClick={() => handleFilterMode("month")}
+            className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
+              filterMode === "month"
+                ? "bg-[#D04A02] text-white border-[#D04A02]"
+                : "bg-white text-[#464646] border-[#E8E8E8] hover:border-[#D04A02]"
+            }`}
+          >
+            당월
+          </button>
+          <button
+            onClick={() => handleFilterMode("3m")}
+            className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
+              filterMode === "3m"
+                ? "bg-[#D04A02] text-white border-[#D04A02]"
+                : "bg-white text-[#464646] border-[#E8E8E8] hover:border-[#D04A02]"
+            }`}
+          >
+            직전 3개월
+          </button>
+          <button
+            onClick={() => handleFilterMode("all")}
+            className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
+              filterMode === "all"
+                ? "bg-[#D04A02] text-white border-[#D04A02]"
+                : "bg-white text-[#464646] border-[#E8E8E8] hover:border-[#D04A02]"
+            }`}
+          >
+            전체기간
+          </button>
+        </div>
+
+        <div className="h-5 w-px bg-[#E8E8E8]" />
+
         <div className="flex items-center gap-2">
           <label className="text-xs text-gray-500">기간:</label>
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={(e) => { setDateFrom(e.target.value); setFilterMode("3m"); setAutoNarrowed(true); }}
             className="text-xs border border-gray-300 rounded px-2 py-1.5"
           />
           <span className="text-xs text-gray-400">~</span>
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={(e) => { setDateTo(e.target.value); setFilterMode("3m"); setAutoNarrowed(true); }}
             className="text-xs border border-gray-300 rounded px-2 py-1.5"
           />
         </div>
@@ -172,6 +277,19 @@ export default function ScenarioAnalysis({
             className="text-xs border border-gray-300 rounded px-2 py-1.5 w-28"
           />
         </div>
+
+        {/* Reset button */}
+        <button
+          onClick={() => {
+            handleFilterMode("3m");
+            setAmountMin("");
+            setAmountMax("");
+            setAutoNarrowed(false);
+          }}
+          className="ml-auto px-3 py-1.5 text-xs text-[#7D7D7D] hover:text-[#D04A02] border border-[#E8E8E8] rounded hover:border-[#D04A02] transition-colors"
+        >
+          필터 초기화
+        </button>
       </div>
 
       {/* Scenario info card */}
@@ -188,25 +306,12 @@ export default function ScenarioAnalysis({
           </div>
         </div>
 
-        {/* Scenario-specific content */}
-        {scenarioKey === "scenario1" && (
-          <Scenario1Table data={scenarios.scenario1} />
-        )}
-        {scenarioKey === "scenario2" && (
-          <Scenario2Table data={scenarios.scenario2} />
-        )}
-        {scenarioKey === "scenario3" && (
-          <Scenario3Table data={scenarios.scenario3} />
-        )}
-        {scenarioKey === "scenario4" && (
-          <Scenario4Table data={scenarios.scenario4} />
-        )}
-        {scenarioKey === "scenario5" && (
-          <Scenario5Table data={scenarios.scenario5} />
-        )}
-        {scenarioKey === "scenario6" && (
-          <Scenario6Table data={scenarios.scenario6} />
-        )}
+        {scenarioKey === "scenario1" && <Scenario1Table data={scenarios.scenario1} />}
+        {scenarioKey === "scenario2" && <Scenario2Table data={scenarios.scenario2} />}
+        {scenarioKey === "scenario3" && <Scenario3Table data={scenarios.scenario3} />}
+        {scenarioKey === "scenario4" && <Scenario4Table data={scenarios.scenario4} />}
+        {scenarioKey === "scenario5" && <Scenario5Table data={scenarios.scenario5} />}
+        {scenarioKey === "scenario6" && <Scenario6Table data={scenarios.scenario6} />}
       </div>
     </div>
   );
@@ -217,13 +322,12 @@ export default function ScenarioAnalysis({
 function Scenario1Table({ data }: { data: Scenarios["scenario1"] }) {
   return (
     <div className="space-y-4">
-      {/* Summary */}
       <div className="text-xs font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
-        Exception 요약
+        Exception 요약 ({data.count}건)
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
         <table className="w-full text-xs">
-          <thead>
+          <thead className="sticky top-0">
             <tr className="bg-[#2D2D2D] text-white">
               <th className="text-left px-3 py-2 font-medium">기간</th>
               <th className="text-left px-3 py-2 font-medium">계정</th>
@@ -236,12 +340,8 @@ function Scenario1Table({ data }: { data: Scenarios["scenario1"] }) {
               <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
                 <td className="px-3 py-1.5">{e.period}</td>
                 <td className="px-3 py-1.5">{e.account}</td>
-                <td className="text-right px-3 py-1.5 tabular-nums">
-                  {formatNumber(e.amount)}
-                </td>
-                <td className="text-right px-3 py-1.5 tabular-nums">
-                  {e.debitCount}
-                </td>
+                <td className="text-right px-3 py-1.5 tabular-nums">{formatNumber(e.amount)}</td>
+                <td className="text-right px-3 py-1.5 tabular-nums">{e.debitCount}</td>
               </tr>
             ))}
           </tbody>
@@ -252,32 +352,38 @@ function Scenario1Table({ data }: { data: Scenarios["scenario1"] }) {
 }
 
 function Scenario2Table({ data }: { data: Scenarios["scenario2"] }) {
+  const entries = "entries" in data ? (data as unknown as { entries: Array<{ voucher: string; date: string; amount: number; cashAccount: string; liabilityAccount: string; customer: string }> }).entries : [];
+
   return (
     <div className="space-y-4">
       <div className="text-xs font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
-        Exception 요약
+        상세 전표 내역 ({data.count}건)
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
         <table className="w-full text-xs">
-          <thead>
+          <thead className="sticky top-0">
             <tr className="bg-[#2D2D2D] text-white">
-              <th className="text-left px-3 py-2 font-medium">기간</th>
+              <th className="text-left px-3 py-2 font-medium">전표번호</th>
+              <th className="text-left px-3 py-2 font-medium">일자</th>
+              <th className="text-left px-3 py-2 font-medium">현금계정</th>
+              <th className="text-left px-3 py-2 font-medium">부채계정</th>
               <th className="text-right px-3 py-2 font-medium">금액</th>
-              <th className="text-right px-3 py-2 font-medium">건수</th>
+              <th className="text-left px-3 py-2 font-medium">거래처</th>
             </tr>
           </thead>
           <tbody>
-            {data.exceptions.map((e, i) => (
+            {entries.length > 0 ? entries.map((e, i) => (
               <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="px-3 py-1.5">{e.period}</td>
-                <td className="text-right px-3 py-1.5 tabular-nums">
-                  {formatNumber(e.amount)}
-                </td>
-                <td className="text-right px-3 py-1.5 tabular-nums">
-                  {e.count}
-                </td>
+                <td className="px-3 py-1.5 font-mono">{e.voucher}</td>
+                <td className="px-3 py-1.5">{e.date}</td>
+                <td className="px-3 py-1.5">{e.cashAccount}</td>
+                <td className="px-3 py-1.5">{e.liabilityAccount}</td>
+                <td className="text-right px-3 py-1.5 tabular-nums">{formatNumber(e.amount)}</td>
+                <td className="px-3 py-1.5">{e.customer}</td>
               </tr>
-            ))}
+            )) : (
+              <tr><td colSpan={6} className="text-center py-8 text-gray-400">해당 기간에 데이터가 없습니다.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -289,7 +395,7 @@ function Scenario3Table({ data }: { data: Scenarios["scenario3"] }) {
   return (
     <div className="space-y-4">
       <div className="text-xs font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
-        상세 전표 내역
+        상세 전표 내역 ({data.count}건)
       </div>
       <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
         <table className="w-full text-xs">
@@ -308,9 +414,7 @@ function Scenario3Table({ data }: { data: Scenarios["scenario3"] }) {
                 <td className="px-3 py-1.5 font-mono">{e.voucher}</td>
                 <td className="px-3 py-1.5">{e.account}</td>
                 <td className="px-3 py-1.5">{e.customer}</td>
-                <td className="text-right px-3 py-1.5 tabular-nums">
-                  {formatNumber(e.credit)}
-                </td>
+                <td className="text-right px-3 py-1.5 tabular-nums">{formatNumber(e.credit)}</td>
                 <td className="px-3 py-1.5">{e.date}</td>
               </tr>
             ))}
@@ -325,7 +429,7 @@ function Scenario4Table({ data }: { data: Scenarios["scenario4"] }) {
   return (
     <div className="space-y-4">
       <div className="text-xs font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
-        상세 전표 내역
+        상세 전표 내역 ({data.count}건)
       </div>
       <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
         <table className="w-full text-xs">
@@ -344,9 +448,7 @@ function Scenario4Table({ data }: { data: Scenarios["scenario4"] }) {
                 <td className="px-3 py-1.5 font-mono">{e.voucher}</td>
                 <td className="px-3 py-1.5">{e.account}</td>
                 <td className="px-3 py-1.5">{e.customer}</td>
-                <td className="text-right px-3 py-1.5 tabular-nums">
-                  {formatNumber(e.credit)}
-                </td>
+                <td className="text-right px-3 py-1.5 tabular-nums">{formatNumber(e.credit)}</td>
                 <td className="px-3 py-1.5">{e.date}</td>
               </tr>
             ))}
@@ -361,7 +463,7 @@ function Scenario5Table({ data }: { data: Scenarios["scenario5"] }) {
   return (
     <div className="space-y-4">
       <div className="text-xs font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
-        상세 전표 내역
+        상세 전표 내역 ({data.count}건)
       </div>
       <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
         <table className="w-full text-xs">
@@ -376,12 +478,8 @@ function Scenario5Table({ data }: { data: Scenarios["scenario5"] }) {
             {data.entries.map((e, i) => (
               <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
                 <td className="px-3 py-1.5 font-mono">{e.voucher}</td>
-                <td className="text-right px-3 py-1.5 tabular-nums">
-                  {formatNumber(e.expenseAmt)}
-                </td>
-                <td className="text-right px-3 py-1.5 tabular-nums">
-                  {formatNumber(e.cashAmt)}
-                </td>
+                <td className="text-right px-3 py-1.5 tabular-nums">{formatNumber(e.expenseAmt)}</td>
+                <td className="text-right px-3 py-1.5 tabular-nums">{formatNumber(e.cashAmt)}</td>
               </tr>
             ))}
           </tbody>
@@ -395,10 +493,7 @@ function Scenario6Table({ data }: { data: Scenarios["scenario6"] }) {
   return (
     <div className="space-y-4">
       <div className="text-xs font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
-        해당 거래처 목록
-      </div>
-      <div className="text-xs text-gray-500 mb-2">
-        총 {data.customers.length}개 거래처
+        해당 거래처 목록 ({data.customers.length}개)
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
         {data.customers.map((c, i) => (

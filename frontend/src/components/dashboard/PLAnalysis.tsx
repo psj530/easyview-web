@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   fetchPL,
   fetchSales,
+  fetchPLJournal,
   type PLItem,
   type MonthlyData,
   type MonthlyRateData,
@@ -11,6 +12,7 @@ import {
   type SalesAnalysis,
   type PeriodType,
   type PLTrendAccount,
+  type JournalEntry,
 } from "@/lib/api";
 import {
   formatMillions,
@@ -119,8 +121,8 @@ export default function PLAnalysis({
 
   return (
     <div className="space-y-6">
-      {/* Sub-nav bar with filters */}
-      <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-2 flex flex-wrap items-center justify-between gap-2">
+      {/* Sub-nav bar with filters - sticky below main tabs */}
+      <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-2 flex flex-wrap items-center justify-between gap-2 sticky top-[104px] z-30">
         <div className="flex gap-1">
           {SUB_TABS.map((tab, i) => (
             <button
@@ -178,7 +180,7 @@ export default function PLAnalysis({
       {subTab === 1 && <PLTrendTab plTrend={plTrend} plItems={plItems} />}
       {subTab === 2 && <PLAccountTab plItems={plItems} sales={sales} />}
       {subTab === 3 && (
-        <SalesTab sales={sales} monthlyRevenue={monthlyRevenue} />
+        <SalesTab sales={sales} monthlyRevenue={monthlyRevenue} plItems={plItems} />
       )}
       {subTab === 4 && <PLItemsTab quarterlyPL={quarterlyPL} />}
     </div>
@@ -270,7 +272,7 @@ function PLSummaryTab({
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Triangle%</span>
+                  <span>△%</span>
                   <span
                     className={`font-semibold tabular-nums ${changeColor(
                       m.data.changeRate
@@ -438,34 +440,40 @@ function PLTrendTab({
   plTrend: PLTrendAccount[];
   plItems: PLItem[];
 }) {
-  // If no trend data from API, derive SGA sub-accounts from plItems
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [journalLoading, setJournalLoading] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<string>("");
+
   const sgaAccounts = useMemo(() => {
     if (plTrend.length > 0) return plTrend;
+    return [];
+  }, [plTrend]);
 
-    const sgaNames = [
-      "건물관리비", "경상개발연구비", "광고선전비", "교육훈련비",
-      "급여", "대손상각비", "도서인쇄비", "무형자산상각비",
-      "보험료", "복리후생비", "사용권자산상각비", "세금과공과",
-    ];
+  const currentYear = new Date().getFullYear();
 
-    return sgaNames.map((name) => ({
-      account: name,
-      current: Array.from({ length: 12 }, () =>
-        Math.random() * 100 + 20
-      ).map((v, j) => (j < 9 ? v : null)),
-      prior: Array.from({ length: 12 }, () => Math.random() * 100 + 20),
-    }));
-  }, [plTrend, plItems]);
+  const handleChartClick = useCallback(
+    (monthIndex: number, accountName: string) => {
+      const monthKey = `${currentYear}-${String(monthIndex + 1).padStart(2, "0")}`;
+      setSelectedMonth(monthKey);
+      setSelectedAccount(accountName);
+      setJournalLoading(true);
+      fetchPLJournal(monthKey, "", 100)
+        .then((data) => setJournalEntries(data.entries))
+        .catch(console.error)
+        .finally(() => setJournalLoading(false));
+    },
+    [currentYear]
+  );
 
   return (
     <div className="space-y-6">
       <div className="text-sm font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
-        계정별 추이분석
+        월별 손익 Trend
       </div>
       <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-4">
-        <p className="text-xs text-gray-500 mb-4">
-          월별 손익 Trend에서 라인차트를 클릭하여 해당월 기준 전년 대비 증감 및
-          전기/당기 기표 내역을 분석
+        <p className="text-xs text-gray-500 mb-2">
+          라인차트의 데이터 포인트를 클릭하면 해당월의 기표 내역을 확인할 수 있습니다.
         </p>
       </div>
 
@@ -483,17 +491,18 @@ function PLTrendTab({
                 labels: MONTH_LABELS,
                 datasets: [
                   {
-                    label: "2025",
+                    label: `${currentYear}`,
                     data: acc.current,
                     borderColor: "#D04A02",
                     fill: false,
-                    pointRadius: 2,
+                    pointRadius: 3,
                     pointBackgroundColor: "#D04A02",
+                    pointHoverRadius: 6,
                     borderWidth: 1.5,
                     tension: 0.3,
                   },
                   {
-                    label: "2024",
+                    label: `${currentYear - 1}`,
                     data: acc.prior,
                     borderColor: "#DEDEDE",
                     fill: false,
@@ -514,11 +523,82 @@ function PLTrendTab({
                   x: { grid: { display: false }, ticks: { font: { size: 8 } } },
                   y: { grid: { color: "#F0F0F0" }, ticks: { font: { size: 8 } } },
                 },
+                onClick: (_event: unknown, elements: Array<{ index: number }>) => {
+                  if (elements.length > 0) {
+                    handleChartClick(elements[0].index, acc.account);
+                  }
+                },
               }}
             />
           </div>
         ))}
       </div>
+
+      {/* Drill-down Journal Table */}
+      {selectedMonth && (
+        <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
+              당기 기표 내역 - {selectedMonth} {selectedAccount && `(${selectedAccount})`}
+            </div>
+            <button
+              onClick={() => {
+                setSelectedMonth(null);
+                setJournalEntries([]);
+              }}
+              className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 border border-gray-300 rounded"
+            >
+              닫기
+            </button>
+          </div>
+          {journalLoading ? (
+            <div className="flex items-center justify-center h-20 text-xs text-gray-400">
+              로딩 중...
+            </div>
+          ) : (
+            <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0">
+                  <tr className="bg-[#2D2D2D] text-white">
+                    <th className="text-left px-3 py-2 font-medium">일자</th>
+                    <th className="text-left px-3 py-2 font-medium">전표번호</th>
+                    <th className="text-left px-3 py-2 font-medium">거래처</th>
+                    <th className="text-left px-3 py-2 font-medium">계정과목</th>
+                    <th className="text-left px-3 py-2 font-medium">적요</th>
+                    <th className="text-right px-3 py-2 font-medium">차변</th>
+                    <th className="text-right px-3 py-2 font-medium">대변</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {journalEntries.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-8 text-gray-400">
+                        기표 내역이 없습니다.
+                      </td>
+                    </tr>
+                  ) : (
+                    journalEntries.map((entry, i) => (
+                      <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-3 py-1.5 whitespace-nowrap">{entry.date}</td>
+                        <td className="px-3 py-1.5 font-mono whitespace-nowrap">{entry.voucherNo}</td>
+                        <td className="px-3 py-1.5">{entry.customer}</td>
+                        <td className="px-3 py-1.5">{entry.account}</td>
+                        <td className="px-3 py-1.5 truncate max-w-[200px]">{entry.memo}</td>
+                        <td className="text-right px-3 py-1.5 tabular-nums">
+                          {entry.debit ? formatNumber(entry.debit) : ""}
+                        </td>
+                        <td className="text-right px-3 py-1.5 tabular-nums">
+                          {entry.credit ? formatNumber(entry.credit) : ""}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -647,9 +727,11 @@ function PLAccountTab({
 function SalesTab({
   sales,
   monthlyRevenue,
+  plItems,
 }: {
   sales: SalesAnalysis | null;
   monthlyRevenue: MonthlyData | null;
+  plItems: PLItem[];
 }) {
   if (!sales) return null;
 
@@ -664,26 +746,35 @@ function SalesTab({
         {/* Revenue Summary */}
         <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
           <div className="text-xs text-gray-500 mb-1">매출액</div>
-          <div className="text-xl font-bold text-[#D04A02] mb-2">
-            {formatMillions(
-              sales.topCustomerShare.reduce(
-                (sum, c) => sum + c.share,
-                0
-              ) > 0
-                ? 0
-                : 0
-            )}
-          </div>
-          <div className="space-y-1 text-xs text-gray-500">
-            <div className="flex justify-between">
-              <span>전기</span>
-              <span className="tabular-nums">-</span>
-            </div>
-            <div className="flex justify-between">
-              <span>증감</span>
-              <span className="tabular-nums">-</span>
-            </div>
-          </div>
+          {(() => {
+            const rev = plItems.find(p => p.account === "매출액");
+            return rev ? (
+              <>
+                <div className="text-xl font-bold text-[#D04A02] mb-2">
+                  {formatMillions(rev.current)}
+                  <span className="text-xs font-normal text-gray-400 ml-1">백만</span>
+                </div>
+                <div className="space-y-1 text-xs text-gray-500">
+                  <div className="flex justify-between">
+                    <span>전기</span>
+                    <span className="tabular-nums">{formatMillions(rev.prior)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>증감</span>
+                    <span className="tabular-nums">{formatMillions(rev.change)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>△%</span>
+                    <span className={`font-semibold tabular-nums ${changeColor(rev.changeRate)}`}>
+                      {formatChangeRate(rev.changeRate)}
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-xl font-bold text-[#D04A02]">-</div>
+            );
+          })()}
         </div>
 
         {/* Customer Count */}
@@ -707,7 +798,7 @@ function SalesTab({
               </span>
             </div>
             <div className="flex justify-between">
-              <span>Triangle%</span>
+              <span>△%</span>
               <span
                 className={`font-semibold tabular-nums ${changeColor(
                   sales.customerCount.changeRate

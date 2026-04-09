@@ -386,3 +386,10 @@ export function fetchFullData() {
 export function fetchHealth() {
   return fetchJSON<{ status: string }>("/health");
 }
+
+export function fetchPLJournal(monthKey: string, disclosure?: string, limit?: number) {
+  const params: Record<string, string> = { monthKey };
+  if (disclosure) params.disclosure = disclosure;
+  if (limit) params.limit = String(limit);
+  return fetchJSON<JournalSearchResult>("/pl/journal", params);
+}

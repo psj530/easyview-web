@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PwC Easy View 3.0 - Project Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    color: #2D2D2D;
+    line-height: 1.7;
+    background: #fff;
+    font-size: 11pt;
+  }
+
+  @page { size: A4; margin: 20mm 18mm; }
+  @media print {
+    body { font-size: 10pt; }
+    .page-break { page-break-before: always; }
+    .no-print { display: none; }
+  }
+
+  /* ===== Cover ===== */
+  .cover {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: linear-gradient(135deg, #2D2D2D 0%, #464646 100%);
+    color: #fff;
+    padding: 60px 40px;
+    page-break-after: always;
+  }
+  .cover .orange-bar { width: 80px; height: 4px; background: #D04A02; margin: 0 auto 40px; }
+  .cover h1 { font-size: 36pt; font-weight: 700; margin-bottom: 8px; }
+  .cover .subtitle { font-size: 14pt; color: #ABABAB; margin-bottom: 40px; font-weight: 300; }
+  .cover .version { display: inline-block; background: #D04A02; color: #fff; padding: 6px 24px; border-radius: 20px; font-size: 11pt; font-weight: 600; margin-bottom: 40px; }
+  .cover .meta { color: #7D7D7D; font-size: 10pt; line-height: 2; }
+  .cover .meta strong { color: #E8E8E8; }
+  .cover .pwc-logo { font-size: 18pt; color: #fff; margin-bottom: 16px; letter-spacing: 2px; }
+  .cover .pwc-mark { color: #D04A02; font-weight: 700; }
+
+  /* ===== Section ===== */
+  .section { padding: 32px 0; }
+  h2 {
+    font-size: 16pt;
+    font-weight: 700;
+    color: #2D2D2D;
+    border-left: 4px solid #D04A02;
+    padding-left: 14px;
+    margin-bottom: 20px;
+  }
+  h3 { font-size: 12pt; font-weight: 600; color: #464646; margin: 18px 0 10px; }
+
+  .content { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+
+  /* ===== Table ===== */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 10pt; }
+  th { background: #F5F5F5; font-weight: 600; text-align: left; padding: 10px 14px; border-bottom: 2px solid #E8E8E8; color: #464646; }
+  td { padding: 8px 14px; border-bottom: 1px solid #E8E8E8; }
+  tr:hover td { background: #FAFAFA; }
+
+  /* ===== Badges ===== */
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 9pt; font-weight: 600; }
+  .badge-orange { background: #FFF0E6; color: #D04A02; }
+  .badge-dark { background: #2D2D2D; color: #fff; }
+  .badge-gray { background: #F5F5F5; color: #7D7D7D; }
+
+  /* ===== Cards ===== */
+  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .card {
+    border: 1px solid #E8E8E8;
+    border-radius: 8px;
+    padding: 18px;
+    background: #fff;
+  }
+  .card-title { font-size: 11pt; font-weight: 600; color: #2D2D2D; margin-bottom: 6px; }
+  .card-desc { font-size: 9.5pt; color: #7D7D7D; line-height: 1.6; }
+  .card-accent { border-top: 3px solid #D04A02; }
+
+  /* ===== Flow ===== */
+  .flow { display: flex; align-items: center; gap: 8px; margin: 16px 0; flex-wrap: wrap; }
+  .flow-step {
+    background: #F5F5F5;
+    border: 1px solid #E8E8E8;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 10pt;
+    font-weight: 500;
+    text-align: center;
+    min-width: 100px;
+  }
+  .flow-step.active { background: #D04A02; color: #fff; border-color: #D04A02; }
+  .flow-arrow { color: #ABABAB; font-size: 16pt; }
+
+  /* ===== Code ===== */
+  .code-block {
+    background: #2D2D2D;
+    color: #E8E8E8;
+    border-radius: 8px;
+    padding: 16px 20px;
+    font-family: 'Consolas', monospace;
+    font-size: 9.5pt;
+    line-height: 1.8;
+    margin: 12px 0;
+    overflow-x: auto;
+  }
+  .code-block .comment { color: #7D7D7D; }
+  .code-block .highlight { color: #D04A02; }
+
+  /* ===== Checklist ===== */
+  .checklist { list-style: none; padding: 0; }
+  .checklist li { padding: 4px 0; font-size: 10.5pt; }
+  .checklist li::before { content: "\2713 "; color: #D04A02; font-weight: 700; margin-right: 6px; }
+
+  /* ===== Footer ===== */
+  .footer {
+    text-align: center;
+    padding: 30px 0;
+    color: #ABABAB;
+    font-size: 9pt;
+    border-top: 1px solid #E8E8E8;
+    margin-top: 40px;
+  }
+
+  .text-orange { color: #D04A02; }
+  .text-gray { color: #7D7D7D; }
+  .text-sm { font-size: 9.5pt; }
+  .mt-sm { margin-top: 8px; }
+  .mb-lg { margin-bottom: 24px; }
+</style>
+</head>
+<body>
+
+<!-- ===== COVER ===== -->
+<div class="cover">
+  <div class="pwc-logo">p<span class="pwc-mark">w</span>c</div>
+  <div class="orange-bar"></div>
+  <h1>Easy View 3.0</h1>
+  <p class="subtitle">PwC Worldwide Financial Analysis Platform</p>
+  <div class="version">Web Service Edition</div>
+  <div class="meta">
+    <strong>삼일회계법인</strong> Assurance Innovation<br>
+    Project Overview &amp; Technical Documentation<br><br>
+    2024 - 2026 | Confidential
+  </div>
+</div>
+
+<!-- ===== PAGE 2: PROJECT OVERVIEW ===== -->
+<div class="content">
+<div class="section">
+  <h2>1. 프로젝트 개요</h2>
+  <p>
+    PwC Easy View 3.0은 삼일회계법인(PwC Korea)의 <strong>Power BI 기반 재무분석 리포트</strong>를
+    웹 환경으로 구현한 플랫폼입니다. 기존 58페이지 PDF 리포트의 모든 분석 기능을
+    인터랙티브 웹 대시보드로 제공하며, 감사팀과 고객사가 실시간으로 재무 데이터를
+    분석하고 리포트를 생성할 수 있습니다.
+  </p>
+
+  <h3>핵심 목표</h3>
+  <div class="card-grid">
+    <div class="card card-accent">
+      <div class="card-title">자동 리포트 생성</div>
+      <div class="card-desc">원본 분개장/시산표를 업로드하면 Easy View Template에 맞게 자동 가공하여 즉시 리포트 생성</div>
+    </div>
+    <div class="card card-accent">
+      <div class="card-title">접근 권한 통제</div>
+      <div class="card-desc">삼일회계법인 등록 계정만 접근 가능, 사용자별 담당 고객사 데이터만 노출</div>
+    </div>
+    <div class="card card-accent">
+      <div class="card-title">인터랙티브 분석</div>
+      <div class="card-desc">차트 클릭으로 Drill-down, 전표 검색, 시나리오 분석 등 실시간 상호작용</div>
+    </div>
+    <div class="card card-accent">
+      <div class="card-title">PDF 58페이지 대체</div>
+      <div class="card-desc">기존 정적 PDF 리포트를 동적 웹 대시보드로 완전 대체, 언제든 최신 데이터 반영</div>
+    </div>
+  </div>
+</div>
+
+<div class="section page-break">
+  <h2>2. 기술 스택</h2>
+
+  <table>
+    <thead>
+      <tr><th>구분</th><th>기술</th><th>버전</th><th>비고</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>프론트엔드</strong></td><td>Next.js (App Router)</td><td>16.2</td><td>TypeScript, React 19</td></tr>
+      <tr><td><strong>스타일링</strong></td><td>Tailwind CSS</td><td>4.0</td><td>PwC 커스텀 색상 테마</td></tr>
+      <tr><td><strong>차트</strong></td><td>Chart.js + react-chartjs-2</td><td>4.4</td><td>Bar, Line, Doughnut</td></tr>
+      <tr><td><strong>백엔드</strong></td><td>FastAPI (Python)</td><td>3.11</td><td>REST API, 19개 엔드포인트</td></tr>
+      <tr><td><strong>인증</strong></td><td>JWT (자체 구현)</td><td>-</td><td>PBKDF2-HMAC-SHA256</td></tr>
+      <tr><td><strong>데이터베이스</strong></td><td>SQLite (WAL 모드)</td><td>-</td><td>재무 DB + 인증 DB 분리</td></tr>
+      <tr><td><strong>폰트</strong></td><td>Noto Sans KR</td><td>-</td><td>Google Fonts</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>3. 사용자 플로우</h2>
+
+  <h3>전체 네비게이션</h3>
+  <div class="flow">
+    <div class="flow-step">서비스 소개<br><span class="text-sm text-gray">/</span></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step active">로그인<br><span class="text-sm" style="color:#fff">/login</span></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step">리포트 목록<br><span class="text-sm text-gray">/reports</span></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step">대시보드<br><span class="text-sm text-gray">/dashboard</span></div>
+  </div>
+  <div class="flow mt-sm">
+    <div style="width:230px"></div>
+    <div class="flow-arrow" style="transform:rotate(90deg)">&rarr;</div>
+  </div>
+  <div class="flow">
+    <div style="width:180px"></div>
+    <div class="flow-step">데이터 업로드<br><span class="text-sm text-gray">/upload</span></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step" style="background:#FFF0E6; border-color:#D04A02">리포트 변환<br><span class="text-sm text-orange">애니메이션</span></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step">생성 완료<br><span class="text-sm text-gray">대시보드 이동</span></div>
+  </div>
+
+  <h3>리포트 생성 프로세스</h3>
+  <ol style="padding-left:20px; font-size:10.5pt; line-height:2;">
+    <li>로그인 후 <strong>"새 리포트"</strong> 클릭</li>
+    <li>결산 연도/월 선택, 대상 회사 선택</li>
+    <li>분개장(JE/GL) + 시산표(TB) 필수 업로드, 재무제표/기타파일 선택 업로드</li>
+    <li><strong>"Report 생성하기"</strong> 클릭 → 리포트 변환 애니메이션 (단계별 진행)</li>
+    <li>생성 완료 → <strong>"Easy View 리포트 보기"</strong> → 대시보드에서 즉시 확인</li>
+  </ol>
+</div>
+
+<div class="section page-break">
+  <h2>4. 대시보드 구성 (5개 탭)</h2>
+
+  <table>
+    <thead>
+      <tr><th>탭</th><th>서브탭</th><th>주요 내용</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Summary</strong></td>
+        <td>-</td>
+        <td>KPI 4개 (매출액, 매출총이익, 영업이익, 당기순이익), 손익지표, 유동성지표, 시나리오 카운트</td>
+      </tr>
+      <tr>
+        <td><strong>손익분석</strong></td>
+        <td>PL 요약, PL 추이분석, PL 계정분석, 매출분석, 손익항목</td>
+        <td>월별/분기별 손익 추이, 계정별 드릴다운, 거래처 매출 분석, 8분기 11항목 비교</td>
+      </tr>
+      <tr>
+        <td><strong>재무상태분석</strong></td>
+        <td>BS 요약, BS 추이분석, BS 계정분석</td>
+        <td>자산/부채/자본 구성, 재무비율 추이 (유동비율/당좌비율/부채비율), 계정별 잔액추이</td>
+      </tr>
+      <tr>
+        <td><strong>전표분석</strong></td>
+        <td>전표분석내역, 전표검색</td>
+        <td>일별 전표 추이, 전표 유형별 분석, 기간/계정/거래처/적요 필터 검색</td>
+      </tr>
+      <tr>
+        <td><strong>시나리오분석</strong></td>
+        <td>6개 시나리오</td>
+        <td>동일금액 중복, 현금지급 후 부채인식, Round Number 등 감사 시나리오</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>비교 필터</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">기간 비교</div>
+      <div class="card-desc">
+        <span class="badge badge-orange">전년누적 (YTD)</span>
+        <span class="badge badge-dark">전년동월 (YoY)</span>
+        <span class="badge badge-gray">전월비교 (MoM)</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">월 선택</div>
+      <div class="card-desc">2024년 1월 ~ 2025년 9월 (21개월) 중 자유롭게 기준월 변경</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>5. 인증 & 보안</h2>
+
+  <table>
+    <thead>
+      <tr><th>항목</th><th>구현</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>비밀번호 해싱</td><td>PBKDF2-HMAC-SHA256 (100,000 iterations + random salt)</td></tr>
+      <tr><td>토큰 방식</td><td>JWT (HMAC-SHA256 서명, 24시간 만료)</td></tr>
+      <tr><td>접근 통제</td><td>사용자별 회사 접근 권한 (user_companies 테이블)</td></tr>
+      <tr><td>자동 로그인</td><td>선택적 자동 로그인 (localStorage)</td></tr>
+      <tr><td>보안 안내</td><td>삼일회계법인 보안 정책 안내 메시지 표시</td></tr>
+    </tbody>
+  </table>
+
+  <h3>테스트 계정</h3>
+  <table>
+    <thead>
+      <tr><th>이메일</th><th>비밀번호</th><th>역할</th><th>접근 회사</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>admin@samil.com</td><td>admin1234</td><td>관리자</td><td>ABC Company, XYZ Corporation, 삼일전자</td></tr>
+      <tr><td>user@samil.com</td><td>user1234</td><td>사용자</td><td>ABC Company만</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section page-break">
+  <h2>6. API 엔드포인트</h2>
+
+  <table>
+    <thead>
+      <tr><th>Method</th><th>Path</th><th>인증</th><th>설명</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>POST</td><td>/api/auth/login</td><td>-</td><td>로그인</td></tr>
+      <tr><td>GET</td><td>/api/auth/me</td><td>JWT</td><td>현재 사용자 정보</td></tr>
+      <tr><td>GET</td><td>/api/auth/companies</td><td>JWT</td><td>접근 가능 회사 목록</td></tr>
+      <tr><td>GET</td><td>/api/reports</td><td>JWT</td><td>리포트 목록</td></tr>
+      <tr><td>POST</td><td>/api/upload/v2</td><td>JWT</td><td>파일 업로드 &amp; 리포트 생성</td></tr>
+      <tr><td>GET</td><td>/api/summary</td><td>-</td><td>Summary KPI 데이터</td></tr>
+      <tr><td>GET</td><td>/api/pl</td><td>-</td><td>손익계산서 + 분기별 + 월별 추이</td></tr>
+      <tr><td>GET</td><td>/api/bs</td><td>-</td><td>재무상태표 + 재무비율 추이</td></tr>
+      <tr><td>GET</td><td>/api/sales</td><td>-</td><td>매출 거래처 분석</td></tr>
+      <tr><td>GET</td><td>/api/journal</td><td>-</td><td>전표 요약 + 일별 추이</td></tr>
+      <tr><td>GET</td><td>/api/journal/search</td><td>-</td><td>전표 검색 (페이지네이션)</td></tr>
+      <tr><td>GET</td><td>/api/scenarios</td><td>-</td><td>시나리오 분석 6개</td></tr>
+      <tr><td colspan="4" class="text-gray text-sm" style="text-align:center">외 5개 엔드포인트 (meta, months, data, bs/account, pl/journal)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>7. 실행 방법</h2>
+
+  <div class="code-block">
+    <span class="comment"># 백엔드 (터미널 1)</span><br>
+    <span class="highlight">cd</span> easyview-web/backend<br>
+    pip install -r requirements.txt<br>
+    python run.py<br>
+    <span class="comment"># → http://localhost:8000</span><br><br>
+    <span class="comment"># 프론트엔드 (터미널 2)</span><br>
+    <span class="highlight">cd</span> easyview-web/frontend<br>
+    npm install<br>
+    npm run dev -- -p 3003<br>
+    <span class="comment"># → http://localhost:3003/login</span>
+  </div>
+
+  <h3>데이터 검증 (PDF 원본과 100% 일치)</h3>
+  <table>
+    <thead>
+      <tr><th>항목</th><th>값</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>매출액</td><td style="text-align:right; font-weight:600">133,930,227,921</td></tr>
+      <tr><td>매출총이익</td><td style="text-align:right; font-weight:600">81,082,125,844</td></tr>
+      <tr><td>영업이익</td><td style="text-align:right; font-weight:600">27,770,723,534</td></tr>
+      <tr><td>당기순이익</td><td style="text-align:right; font-weight:600">21,803,252,164</td></tr>
+      <tr><td>전표 수</td><td style="text-align:right; font-weight:600">134,784건</td></tr>
+      <tr><td>계정 수</td><td style="text-align:right; font-weight:600">83개</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>8. 향후 계획</h2>
+  <ul class="checklist">
+    <li>전체 PDF 내보내기 (모든 탭 → 하나의 PDF)</li>
+    <li>리포트별 데이터 로드 (리포트 선택 → 해당 리포트의 데이터로 대시보드 렌더링)</li>
+    <li>반응형 모바일 레이아웃</li>
+    <li>Waterfall 차트 (손익 흐름 시각화)</li>
+    <li>Vercel + Render 실배포</li>
+  </ul>
+</div>
+
+<div class="footer">
+  &copy; 2024-2026 PwC Samil. Easy View 3.0 &mdash; Confidential<br>
+  삼일회계법인 Assurance Innovation | parksoujeong@gmail.com
+</div>
+
+</div><!-- .content -->
+</body>
+</html>

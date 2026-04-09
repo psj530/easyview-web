@@ -76,3 +76,78 @@ td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* Print styles for PDF export */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  body {
+    background: white !important;
+    font-size: 11px !important;
+  }
+
+  /* Hide header */
+  header {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Preserve grid layout */
+  .grid {
+    display: grid !important;
+  }
+  .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
+  .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .lg\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+
+  /* Preserve flex layout */
+  .flex { display: flex !important; }
+
+  /* Prevent page breaks inside cards */
+  .rounded-md {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Chart canvas should be visible */
+  canvas {
+    max-width: 100% !important;
+  }
+
+  /* Keep colored borders */
+  [style*="border-top"] {
+    border-top-width: 3px !important;
+  }
+
+  /* Page breaks for full PDF export */
+  .break-before-page {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  /* Hide sticky positioning in print */
+  .sticky {
+    position: static !important;
+  }
+
+  /* Show print header */
+  .print-header {
+    display: block !important;
+  }
+}
