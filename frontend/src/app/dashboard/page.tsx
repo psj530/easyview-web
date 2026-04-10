@@ -6,7 +6,7 @@ import PLAnalysis from "@/components/dashboard/PLAnalysis";
 import BSAnalysis from "@/components/dashboard/BSAnalysis";
 import JournalAnalysis from "@/components/dashboard/JournalAnalysis";
 import ScenarioAnalysis from "@/components/dashboard/ScenarioAnalysis";
-import { fetchMonths, type PeriodType } from "@/lib/api";
+import { fetchMonths, type PeriodType, type BSCompareType } from "@/lib/api";
 
 const TABS = [
   { key: "summary", label: "Summary" },
@@ -21,6 +21,7 @@ type TabKey = (typeof TABS)[number]["key"];
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("summary");
   const [period, setPeriod] = useState<PeriodType>("ytd");
+  const [bsCompare, setBsCompare] = useState<BSCompareType>("year_start");
   const [month, setMonth] = useState<string>("2025-09");
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [printAll, setPrintAll] = useState(false);
@@ -68,7 +69,10 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, [printAll]);
 
-  const handleNavigate = useCallback((tabKey: TabKey) => {
+  const [initialSubTab, setInitialSubTab] = useState<number | undefined>(undefined);
+
+  const handleNavigate = useCallback((tabKey: TabKey, subTab?: number) => {
+    setInitialSubTab(subTab);
     setActiveTab(tabKey);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
@@ -92,8 +96,10 @@ export default function DashboardPage() {
           <div className="mb-4">
             <Summary
               period={period}
+              bsCompare={bsCompare}
               month={month}
               onPeriodChange={setPeriod}
+              onBsCompareChange={setBsCompare}
               onMonthChange={setMonth}
               availableMonths={availableMonths}
               onNavigate={handleNavigate}
@@ -123,6 +129,7 @@ export default function DashboardPage() {
           <div className="mb-4">
             <BSAnalysis
               period={period}
+              bsCompare={bsCompare}
               month={month}
               onMonthChange={setMonth}
               availableMonths={availableMonths}
@@ -196,8 +203,10 @@ export default function DashboardPage() {
         {activeTab === "summary" && (
           <Summary
             period={period}
+            bsCompare={bsCompare}
             month={month}
             onPeriodChange={setPeriod}
+            onBsCompareChange={setBsCompare}
             onMonthChange={setMonth}
             availableMonths={availableMonths}
             onNavigate={handleNavigate}
@@ -210,21 +219,24 @@ export default function DashboardPage() {
             onPeriodChange={setPeriod}
             onMonthChange={setMonth}
             availableMonths={availableMonths}
+            initialSubTab={initialSubTab}
           />
         )}
         {activeTab === "bs" && (
           <BSAnalysis
             period={period}
+            bsCompare={bsCompare}
             month={month}
             onMonthChange={setMonth}
             availableMonths={availableMonths}
+            initialSubTab={initialSubTab}
           />
         )}
         {activeTab === "journal" && (
           <JournalAnalysis period={period} month={month} />
         )}
         {activeTab === "scenario" && (
-          <ScenarioAnalysis period={period} month={month} />
+          <ScenarioAnalysis period={period} month={month} initialSubTab={initialSubTab} />
         )}
       </div>
     </div>

@@ -9,6 +9,7 @@ import {
   type PLItem,
   type BSItem,
   type PeriodType,
+  type BSCompareType,
   type MonthlyData,
 } from "@/lib/api";
 import {
@@ -24,11 +25,13 @@ import {
 
 interface SummaryProps {
   period: PeriodType;
+  bsCompare: BSCompareType;
   month: string;
   onPeriodChange: (p: PeriodType) => void;
+  onBsCompareChange: (b: BSCompareType) => void;
   onMonthChange: (m: string) => void;
   availableMonths: string[];
-  onNavigate: (tab: "summary" | "pl" | "bs" | "journal" | "scenario") => void;
+  onNavigate: (tab: "summary" | "pl" | "bs" | "journal" | "scenario", subTab?: number) => void;
 }
 
 const PERIOD_OPTIONS: { label: string; value: PeriodType }[] = [
@@ -106,16 +109,21 @@ function TopItemsCard({
   title,
   items,
   borderColor,
+  onClick,
 }: {
   title: string;
   items: { name: string; amount: number }[];
   borderColor: string;
+  onClick?: () => void;
 }) {
   const maxVal = Math.max(...items.map((i) => Math.abs(i.amount)), 1);
 
   return (
     <div
-      className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5"
+      onClick={onClick}
+      className={`bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5 ${
+        onClick ? "cursor-pointer hover:shadow-md transition-shadow" : ""
+      }`}
       style={{ borderTopWidth: 3, borderTopColor: borderColor }}
     >
       <div className="text-sm font-semibold text-[#2D2D2D] mb-3 border-l-[3px] border-[#D04A02] pl-2">
@@ -199,8 +207,10 @@ function ScenarioCountCard({
 
 export default function Summary({
   period,
+  bsCompare,
   month,
   onPeriodChange,
+  onBsCompareChange,
   onMonthChange,
   availableMonths,
   onNavigate,
@@ -216,7 +226,7 @@ export default function Summary({
   useEffect(() => {
     setLoading(true);
     setError(null);
-    const filter = { period, month };
+    const filter = { period, month, bsCompare };
 
     Promise.all([
       fetchSummary(filter),
@@ -235,7 +245,7 @@ export default function Summary({
         setError("데이터를 불러오는 중 오류가 발생했습니다.");
       })
       .finally(() => setLoading(false));
-  }, [period, month]);
+  }, [period, month, bsCompare]);
 
   if (loading) {
     return (
@@ -299,8 +309,22 @@ export default function Summary({
         <div className="flex items-center gap-2 text-xs">
           <span className="text-[#7D7D7D] font-medium">비교대상 /재무상태</span>
           <div className="flex border border-gray-300 rounded overflow-hidden">
-            <button className="px-3 py-1.5 text-xs font-medium bg-[#2D2D2D] text-white">연초</button>
-            <button className="px-3 py-1.5 text-xs font-medium bg-white text-[#464646] hover:bg-gray-50">월초</button>
+            <button
+              onClick={() => onBsCompareChange("year_start")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                bsCompare === "year_start"
+                  ? "bg-[#2D2D2D] text-white"
+                  : "bg-white text-[#464646] hover:bg-gray-50"
+              }`}
+            >연초</button>
+            <button
+              onClick={() => onBsCompareChange("month_start")}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                bsCompare === "month_start"
+                  ? "bg-[#2D2D2D] text-white"
+                  : "bg-white text-[#464646] hover:bg-gray-50"
+              }`}
+            >월초</button>
           </div>
         </div>
       </div>
@@ -347,27 +371,34 @@ export default function Summary({
           title="매출액 증가액 상위 3개 거래처"
           items={summary.revenueTopCustomers}
           borderColor="#D04A02"
+          onClick={() => onNavigate("pl", 3)}
         />
         <TopItemsCard
           title="비용 증가액 상위 3개 계정"
           items={summary.expenseTopAccounts}
           borderColor="#E0301E"
+          onClick={() => onNavigate("pl", 2)}
         />
         <TopItemsCard
           title="자산 증가액 상위 3개 계정"
           items={summary.assetTopAccounts}
           borderColor="#A05E37"
+          onClick={() => onNavigate("bs", 2)}
         />
         <TopItemsCard
           title="부채 증가액 상위 3개 계정"
           items={summary.liabilityTopAccounts}
           borderColor="#D93954"
+          onClick={() => onNavigate("bs", 2)}
         />
       </div>
 
       {/* Indicators Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
+        <div
+          className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => onNavigate("pl", 0)}
+        >
           <div className="text-sm font-semibold text-[#2D2D2D] mb-4 border-l-[3px] border-[#D04A02] pl-2">
             손익지표
           </div>
@@ -377,7 +408,10 @@ export default function Summary({
             <IndicatorItem label="당기손익률" value={summary.profitIndicators.netMargin} color="#A05E37" />
           </div>
         </div>
-        <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
+        <div
+          className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => onNavigate("bs", 0)}
+        >
           <div className="text-sm font-semibold text-[#2D2D2D] mb-4 border-l-[3px] border-[#D04A02] pl-2">
             유동성지표
           </div>
@@ -393,7 +427,7 @@ export default function Summary({
         {/* PL Summary Table */}
         <div
           className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5 cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => onNavigate("pl")}
+          onClick={() => onNavigate("pl", 2)}
         >
           <div className="text-sm font-semibold text-[#2D2D2D] mb-4 border-l-[3px] border-[#D04A02] pl-2">
             손익항목
@@ -438,7 +472,7 @@ export default function Summary({
         {/* BS Summary Table */}
         <div
           className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5 cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => onNavigate("bs")}
+          onClick={() => onNavigate("bs", 2)}
         >
           <div className="text-sm font-semibold text-[#2D2D2D] mb-4 border-l-[3px] border-[#D04A02] pl-2">
             재무항목
@@ -496,22 +530,22 @@ export default function Summary({
         <ScenarioCountCard
           label="동일금액 중복"
           count={summary.scenarioCounts.duplicateAmount}
-          onClick={() => onNavigate("scenario")}
+          onClick={() => onNavigate("scenario", 0)}
         />
         <ScenarioCountCard
           label="현금지급후 부채인식"
           count={summary.scenarioCounts.cashAfterLiability}
-          onClick={() => onNavigate("scenario")}
+          onClick={() => onNavigate("scenario", 1)}
         />
         <ScenarioCountCard
           label="주말현금지급"
           count={summary.scenarioCounts.weekendCash}
-          onClick={() => onNavigate("scenario")}
+          onClick={() => onNavigate("scenario", 2)}
         />
         <ScenarioCountCard
           label="현금지급 및 비용인식"
           count={summary.scenarioCounts.cashAndExpense}
-          onClick={() => onNavigate("scenario")}
+          onClick={() => onNavigate("scenario", 4)}
         />
       </div>
     </div>

@@ -139,14 +139,15 @@ async def get_months():
 async def get_summary(
     period: Optional[str] = Query("ytd", description="비교기간"),
     month: Optional[str] = Query(None, description="기준월"),
+    bs_compare: Optional[str] = Query("year_start", description="BS 비교대상: year_start(연초), month_start(월초)"),
 ):
     if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
     if not month:
         months = db.get_available_months()
         month = months[-1] if months else "2025-09"
-    summary = db.get_summary_data(period, month)
-    summary["filter"] = {"period": period, "month": month}
+    summary = db.get_summary_data(period, month, bs_compare)
+    summary["filter"] = {"period": period, "month": month, "bsCompare": bs_compare}
     return summary
 
 
@@ -171,13 +172,14 @@ async def get_pl(
 async def get_bs(
     period: Optional[str] = Query("ytd", description="비교기간"),
     month: Optional[str] = Query(None, description="기준월"),
+    bs_compare: Optional[str] = Query("year_start", description="BS 비교대상: year_start(연초), month_start(월초)"),
 ):
     if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
     if not month:
         months = db.get_available_months()
         month = months[-1] if months else "2025-09"
-    bs = db.get_bs_data(period, month)
+    bs = db.get_bs_data(period, month, bs_compare)
     return bs
 
 

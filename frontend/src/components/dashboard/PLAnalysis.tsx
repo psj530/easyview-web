@@ -36,6 +36,7 @@ interface PLAnalysisProps {
   onPeriodChange: (p: PeriodType) => void;
   onMonthChange: (m: string) => void;
   availableMonths: string[];
+  initialSubTab?: number;
 }
 
 const SUB_TABS = [
@@ -60,8 +61,9 @@ export default function PLAnalysis({
   onPeriodChange,
   onMonthChange,
   availableMonths,
+  initialSubTab,
 }: PLAnalysisProps) {
-  const [subTab, setSubTab] = useState(0);
+  const [subTab, setSubTab] = useState(initialSubTab ?? 0);
   const [plItems, setPlItems] = useState<PLItem[]>([]);
   const [monthlyRevenue, setMonthlyRevenue] = useState<MonthlyData | null>(null);
   const [monthlyOP, setMonthlyOP] = useState<MonthlyData | null>(null);

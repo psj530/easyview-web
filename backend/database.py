@@ -458,7 +458,7 @@ class Database:
     # BS Data
     # ====================================================================
 
-    def get_bs_data(self, period: str = 'ytd', month: str = '2025-09') -> dict:
+    def get_bs_data(self, period: str = 'ytd', month: str = '2025-09', bs_compare: str = 'year_start') -> dict:
         conn = self._conn()
         year = int(month[:4])
         mon = int(month[5:7])
@@ -495,6 +495,28 @@ class Database:
             bs_by_disclosure[info['disclosure']]['begin'] += begin
             bs_by_disclosure[info['disclosure']]['end'] += end
 
+        # Include JE-only BS accounts (not in TB but have JE movements)
+        je_only_rows = conn.execute("""
+            SELECT je.account, je.category, je.disclosure, je.aggregate,
+                   SUM(CASE WHEN je.side='\ucc28\ubcc0' THEN je.amount ELSE -je.amount END) as net
+            FROM je LEFT JOIN tb ON je.account = tb.account
+            WHERE tb.account IS NULL AND je.gubun='BS'
+              AND je.date BETWEEN ? AND ?
+            GROUP BY je.account, je.category, je.disclosure, je.aggregate
+        """, (current_start, current_end)).fetchall()
+        for r in je_only_rows:
+            movement = r['net']
+            cat = r['category']
+            end = -movement if cat in ('\ubd80\ucc44', '\uc790\ubcf8') else movement
+            info = {'account': r['account'], 'category': cat, 'disclosure': r['disclosure'],
+                    'aggregate': r['aggregate'], 'begin_balance': 0, 'gubun': 'BS',
+                    'management': r['disclosure'], 'first_trans': r['account'],
+                    'acct_code': '', 'company_acct': r['account']}
+            item = {**info, 'begin': 0, 'end': end, 'change': end}
+            bs_items_raw.append(item)
+            bs_by_category[cat]['end'] += end
+            bs_by_disclosure[r['disclosure']]['end'] += end
+
         # Add net income to equity end balance (merged into 자본 accounts)
         net_income = 0
         try:
@@ -519,6 +541,51 @@ class Database:
                     bs_by_disclosure[first_disc]['end'] += net_income
         except Exception:
             pass
+
+        # For 월초 (month_start) comparison: recalculate begin as balance at month start
+        if bs_compare == 'month_start':
+            prev_end = f"{year}-{mon:02d}-01"  # month start = previous month end + 1
+            if mon == 1:
+                prev_month_end = self._month_end(year - 1, 12)
+            else:
+                prev_month_end = self._month_end(year, mon - 1)
+            # Recalculate begin balances as TB begin + movements up to prev month end
+            prev_mvmt_rows = conn.execute("""
+                SELECT account, SUM(CASE WHEN side='\ucc28\ubcc0' THEN amount ELSE -amount END) as net
+                FROM je WHERE gubun='BS' AND date BETWEEN ? AND ?
+                GROUP BY account
+            """, (current_start, prev_month_end)).fetchall()
+            prev_mvmt = {r['account']: r['net'] for r in prev_mvmt_rows}
+
+            # Reset begin values
+            for cat_key in bs_by_category:
+                bs_by_category[cat_key]['begin'] = 0
+            for disc_key in bs_by_disclosure:
+                bs_by_disclosure[disc_key]['begin'] = 0
+
+            for item in bs_items_raw:
+                acct = item['account']
+                tb_begin = item.get('begin_balance', 0)
+                pm = prev_mvmt.get(acct, 0)
+                new_begin = (tb_begin - pm) if item['category'] in ('\ubd80\ucc44', '\uc790\ubcf8') else (tb_begin + pm)
+                item['begin'] = new_begin
+                item['change'] = item['end'] - new_begin
+                bs_by_category[item['category']]['begin'] += new_begin
+                bs_by_disclosure[item['disclosure']]['begin'] += new_begin
+
+            # JE-only accounts for prev month
+            je_only_prev = conn.execute("""
+                SELECT je.account, je.category, je.disclosure,
+                       SUM(CASE WHEN je.side='\ucc28\ubcc0' THEN je.amount ELSE -je.amount END) as net
+                FROM je LEFT JOIN tb ON je.account = tb.account
+                WHERE tb.account IS NULL AND je.gubun='BS' AND je.date BETWEEN ? AND ?
+                GROUP BY je.account, je.category, je.disclosure
+            """, (current_start, prev_month_end)).fetchall()
+            for r in je_only_prev:
+                cat = r['category']
+                new_begin = -r['net'] if cat in ('\ubd80\ucc44', '\uc790\ubcf8') else r['net']
+                bs_by_category[cat]['begin'] += new_begin
+                bs_by_disclosure[r['disclosure']]['begin'] += new_begin
 
         bs_items = []
         for cat in ['자산', '부채', '자본']:
@@ -597,6 +664,30 @@ class Database:
                         lnc += end
                 elif info['category'] == '\uc790\ubcf8':
                     eq += end
+
+            # Include JE-only BS accounts in trend
+            je_only_t = conn.execute("""
+                SELECT je.category, je.aggregate,
+                       SUM(CASE WHEN je.side='\ucc28\ubcc0' THEN je.amount ELSE -je.amount END) as net
+                FROM je LEFT JOIN tb ON je.account = tb.account
+                WHERE tb.account IS NULL AND je.gubun='BS' AND je.date BETWEEN ? AND ?
+                GROUP BY je.category, je.aggregate
+            """, (m_start, m_end)).fetchall()
+            for r in je_only_t:
+                cat = r['category']
+                end_val = -r['net'] if cat in ('\ubd80\ucc44', '\uc790\ubcf8') else r['net']
+                if cat == '\uc790\uc0b0':
+                    if '\uc720\ub3d9' in r['aggregate'] and '\ube44\uc720\ub3d9' not in r['aggregate']:
+                        ac += end_val
+                    else:
+                        anc += end_val
+                elif cat == '\ubd80\ucc44':
+                    if '\uc720\ub3d9' in r['aggregate'] and '\ube44\uc720\ub3d9' not in r['aggregate']:
+                        lc += end_val
+                    else:
+                        lnc += end_val
+                elif cat == '\uc790\ubcf8':
+                    eq += end_val
 
             bs_trend['labels'].append(m_key)
             bs_trend['assets']['current'].append(round(ac / 1e6))
@@ -859,7 +950,7 @@ class Database:
     # Summary (composite)
     # ====================================================================
 
-    def get_summary_data(self, period: str = 'ytd', month: str = '2025-09') -> dict:
+    def get_summary_data(self, period: str = 'ytd', month: str = '2025-09', bs_compare: str = 'year_start') -> dict:
         """Lightweight summary - direct SQL queries instead of calling heavy endpoints."""
         cs, ce, ps, pe = self._resolve_date_ranges(period, month)
         conn = self._conn()
@@ -918,6 +1009,57 @@ class Database:
             bs_disc[r['disclosure']]['end'] += end
             bs_disc[r['disclosure']]['cat'] = r['category']
             agg_end[r['aggregate']] += end
+
+        # Include JE-only BS accounts (not in TB)
+        je_only_rows = conn.execute("""
+            SELECT je.account, je.category, je.disclosure, je.aggregate,
+                   SUM(CASE WHEN je.side='\ucc28\ubcc0' THEN je.amount ELSE -je.amount END) as net
+            FROM je LEFT JOIN tb ON je.account = tb.account
+            WHERE tb.account IS NULL AND je.gubun='BS'
+              AND je.date BETWEEN ? AND ?
+            GROUP BY je.account, je.category, je.disclosure, je.aggregate
+        """, (bs_start, current_end)).fetchall()
+        for r in je_only_rows:
+            cat = r['category']
+            end = -r['net'] if cat in ('\ubd80\ucc44', '\uc790\ubcf8') else r['net']
+            bs_cat[cat]['end'] += end
+            bs_disc[r['disclosure']]['end'] += end
+            bs_disc[r['disclosure']]['cat'] = cat
+            agg_end[r['aggregate']] += end
+
+        # For 월초 comparison: recalculate begin as balance at month start
+        if bs_compare == 'month_start':
+            if mon == 1:
+                prev_month_end = self._month_end(year - 1, 12)
+            else:
+                prev_month_end = self._month_end(year, mon - 1)
+            prev_mvmt_rows = conn.execute("""
+                SELECT account, SUM(CASE WHEN side='\ucc28\ubcc0' THEN amount ELSE -amount END) as net
+                FROM je WHERE gubun='BS' AND date BETWEEN ? AND ? GROUP BY account
+            """, (bs_start, prev_month_end)).fetchall()
+            prev_mvmt = {r['account']: r['net'] for r in prev_mvmt_rows}
+            for cat_key in bs_cat:
+                bs_cat[cat_key]['begin'] = 0
+            for disc_key in bs_disc:
+                bs_disc[disc_key]['begin'] = 0
+            for r in tb_rows:
+                pm = prev_mvmt.get(r['account'], 0)
+                new_begin = (r['begin_balance'] - pm) if r['category'] in ('\ubd80\ucc44', '\uc790\ubcf8') else (r['begin_balance'] + pm)
+                bs_cat[r['category']]['begin'] += new_begin
+                bs_disc[r['disclosure']]['begin'] += new_begin
+            # JE-only accounts for prev month
+            je_only_prev = conn.execute("""
+                SELECT je.category, je.disclosure,
+                       SUM(CASE WHEN je.side='\ucc28\ubcc0' THEN je.amount ELSE -je.amount END) as net
+                FROM je LEFT JOIN tb ON je.account = tb.account
+                WHERE tb.account IS NULL AND je.gubun='BS' AND je.date BETWEEN ? AND ?
+                GROUP BY je.category, je.disclosure
+            """, (bs_start, prev_month_end)).fetchall()
+            for r in je_only_prev:
+                cat = r['category']
+                new_begin = -r['net'] if cat in ('\ubd80\ucc44', '\uc790\ubcf8') else r['net']
+                bs_cat[cat]['begin'] += new_begin
+                bs_disc[r['disclosure']]['begin'] += new_begin
 
         assets_end = bs_cat['자산']['end']
         liab_end = bs_cat['부채']['end']

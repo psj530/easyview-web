@@ -8,6 +8,7 @@ import {
   type BSTrend,
   type ActivityMetrics,
   type PeriodType,
+  type BSCompareType,
   type SummaryKPI,
   type BSAccountDetail,
 } from "@/lib/api";
@@ -26,9 +27,11 @@ import LineChart from "@/components/charts/LineChart";
 
 interface BSAnalysisProps {
   period: PeriodType;
+  bsCompare: BSCompareType;
   month: string;
   onMonthChange: (m: string) => void;
   availableMonths: string[];
+  initialSubTab?: number;
 }
 
 const SUB_TABS = ["BS 요약", "BS 추이분석", "BS 계정분석"];
@@ -37,11 +40,13 @@ const SUB_TABS = ["BS 요약", "BS 추이분석", "BS 계정분석"];
 
 export default function BSAnalysis({
   period,
+  bsCompare,
   month,
   onMonthChange,
   availableMonths,
+  initialSubTab,
 }: BSAnalysisProps) {
-  const [subTab, setSubTab] = useState(0);
+  const [subTab, setSubTab] = useState(initialSubTab ?? 0);
   const [bsItems, setBsItems] = useState<BSItem[]>([]);
   const [bsTrend, setBsTrend] = useState<BSTrend | null>(null);
   const [activity, setActivity] = useState<ActivityMetrics | null>(null);
@@ -58,7 +63,7 @@ export default function BSAnalysis({
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetchBS({ period, month })
+    fetchBS({ period, month, bsCompare })
       .then((data) => {
         setBsItems(data.bsItems);
         setBsTrend(data.bsTrend);
@@ -71,7 +76,7 @@ export default function BSAnalysis({
         setError("데이터를 불러오는 중 오류가 발생했습니다.");
       })
       .finally(() => setLoading(false));
-  }, [period, month]);
+  }, [period, month, bsCompare]);
 
   if (loading) {
     return (

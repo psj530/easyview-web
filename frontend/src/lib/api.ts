@@ -19,10 +19,12 @@ async function fetchJSON<T>(endpoint: string, params?: Record<string, string>): 
 /* ---------- Filter Types ---------- */
 
 export type PeriodType = "ytd" | "yoy_month" | "mom";
+export type BSCompareType = "year_start" | "month_start";
 
 export interface FilterParams {
   period?: PeriodType;
   month?: string;
+  bsCompare?: BSCompareType;
 }
 
 /* ---------- Types ---------- */
@@ -278,6 +280,7 @@ function filterToParams(filter?: FilterParams): Record<string, string> | undefin
   const params: Record<string, string> = {};
   if (filter.period) params.period = filter.period;
   if (filter.month) params.month = filter.month;
+  if (filter.bsCompare) params.bs_compare = filter.bsCompare;
   return Object.keys(params).length > 0 ? params : undefined;
 }
 

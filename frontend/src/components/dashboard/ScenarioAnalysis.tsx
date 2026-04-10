@@ -9,6 +9,7 @@ import { formatNumber } from "@/lib/utils";
 interface ScenarioAnalysisProps {
   period: PeriodType;
   month: string;
+  initialSubTab?: number;
 }
 
 const SCENARIO_TABS = [
@@ -71,9 +72,10 @@ type FilterMode = "3m" | "month" | "all";
 export default function ScenarioAnalysis({
   period,
   month,
+  initialSubTab,
 }: ScenarioAnalysisProps) {
   const [scenarios, setScenarios] = useState<Scenarios | null>(null);
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(initialSubTab ?? 0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
