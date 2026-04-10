@@ -462,6 +462,7 @@ class Database:
         conn = self._conn()
         year = int(month[:4])
         mon = int(month[5:7])
+        current_start = f"{year}-01-01"
         current_end = self._month_end(year, mon)
 
         tb_rows = conn.execute("SELECT * FROM tb").fetchall()
@@ -473,9 +474,9 @@ class Database:
         mvmt_rows = conn.execute("""
             SELECT account,
                    SUM(CASE WHEN side='\ucc28\ubcc0' THEN amount ELSE -amount END) as net
-            FROM je WHERE gubun='BS' AND date <= ?
+            FROM je WHERE gubun='BS' AND date BETWEEN ? AND ?
             GROUP BY account
-        """, (current_end,)).fetchall()
+        """, (current_start, current_end)).fetchall()
         for r in mvmt_rows:
             bs_movements[r['account']] = r['net']
 
@@ -494,7 +495,7 @@ class Database:
             bs_by_disclosure[info['disclosure']]['begin'] += begin
             bs_by_disclosure[info['disclosure']]['end'] += end
 
-        # Add net income to equity end balance
+        # Add net income to equity end balance (merged into 자본 accounts)
         net_income = 0
         try:
             pl = self.get_pl_data(period, month)
@@ -503,6 +504,19 @@ class Database:
                     net_income = item['current']
                     break
             bs_by_category['자본']['end'] += net_income
+            # Distribute net income into 자본 sub-accounts proportionally
+            if net_income and bs_items_raw:
+                equity_items = [i for i in bs_items_raw if i['category'] == '자본']
+                if equity_items:
+                    # Add to the first equity aggregate and its disclosure
+                    first_agg = equity_items[0]['aggregate']
+                    first_disc = equity_items[0]['disclosure']
+                    for item in bs_items_raw:
+                        if item['category'] == '자본' and item['aggregate'] == first_agg:
+                            item['end'] += net_income
+                            item['change'] = item['end'] - item['begin']
+                            break
+                    bs_by_disclosure[first_disc]['end'] += net_income
         except Exception:
             pass
 
@@ -541,9 +555,7 @@ class Database:
                                 bs_items.append({'category': dk, 'endBal': round(de), 'beginBal': round(db), 'change': round(de - db), 'changeRate': safe_rate(de, db), 'level': 2, 'bold': False})
                                 added_disclosures.add(dk)
 
-            # Add net income row under 자본
-            if cat == '자본' and net_income:
-                bs_items.append({'category': '당기순이익', 'endBal': round(net_income), 'beginBal': 0, 'change': round(net_income), 'changeRate': 0, 'level': 1, 'bold': False})
+            # Net income is already merged into 자본 sub-accounts above
 
         # BS Trend
         months_all = [r[0] for r in conn.execute("SELECT DISTINCT substr(date,1,7) FROM je ORDER BY 1").fetchall()]
@@ -554,14 +566,17 @@ class Database:
         debt_ratios = []
 
         for m_key in months_all:
-            m_end = self._month_end(int(m_key[:4]), int(m_key[5:7]))
+            m_year = int(m_key[:4])
+            m_mon = int(m_key[5:7])
+            m_start = f"{m_year}-01-01"
+            m_end = self._month_end(m_year, m_mon)
             mvmt = {}
             m_rows = conn.execute("""
                 SELECT account,
                        SUM(CASE WHEN side='\ucc28\ubcc0' THEN amount ELSE -amount END) as net
-                FROM je WHERE gubun='BS' AND date <= ?
+                FROM je WHERE gubun='BS' AND date BETWEEN ? AND ?
                 GROUP BY account
-            """, (m_end,)).fetchall()
+            """, (m_start, m_end)).fetchall()
             for r in m_rows:
                 mvmt[r['account']] = r['net']
 
@@ -881,12 +896,13 @@ class Database:
         # BS basics
         year = int(month[:4])
         mon = int(month[5:7])
+        bs_start = f"{year}-01-01"
         current_end = self._month_end(year, mon)
         tb_rows = conn.execute("SELECT account, begin_balance, category, disclosure, aggregate FROM tb").fetchall()
         mvmt_rows = conn.execute("""
             SELECT account, SUM(CASE WHEN side='차변' THEN amount ELSE -amount END) as net
-            FROM je WHERE gubun='BS' AND date <= ? GROUP BY account
-        """, (current_end,)).fetchall()
+            FROM je WHERE gubun='BS' AND date BETWEEN ? AND ? GROUP BY account
+        """, (bs_start, current_end)).fetchall()
         mvmt = {r['account']: r['net'] for r in mvmt_rows}
 
         bs_cat = defaultdict(lambda: {'begin': 0, 'end': 0})
@@ -1095,11 +1111,14 @@ class Database:
         labels = []
         balances = []
         for m_key in months_all:
-            m_end = self._month_end(int(m_key[:4]), int(m_key[5:7]))
+            m_year = int(m_key[:4])
+            m_mon = int(m_key[5:7])
+            m_start = f"{m_year}-01-01"
+            m_end = self._month_end(m_year, m_mon)
             row = conn.execute(f"""
                 SELECT SUM(CASE WHEN side='\ucc28\ubcc0' THEN amount ELSE -amount END) as net
-                FROM je WHERE account IN ({placeholders}) AND date <= ?
-            """, acct_names + [m_end]).fetchone()
+                FROM je WHERE account IN ({placeholders}) AND date BETWEEN ? AND ?
+            """, acct_names + [m_start, m_end]).fetchone()
             movement = row['net'] or 0
             bal = (total_begin - movement) if is_credit_normal else (total_begin + movement)
             labels.append(m_key)
