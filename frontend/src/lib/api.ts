@@ -210,7 +210,7 @@ export interface Scenario2 {
   title: string;
   risk: string;
   count: number;
-  exceptions: { period: string; amount: number; count: number }[];
+  entries: { voucher: string; date: string; amount: number; cashAccount: string; liabilityAccount: string; customer: string }[];
 }
 
 export interface Scenario3 {
@@ -310,6 +310,7 @@ export function fetchPL(filter?: FilterParams) {
     plTrend?: PLTrendAccount[];
     grossMarginRate?: MonthlyRateData;
     operatingMarginRate?: MonthlyRateData;
+    netMarginRate?: MonthlyRateData;
   }>("/pl", filterToParams(filter));
 }
 

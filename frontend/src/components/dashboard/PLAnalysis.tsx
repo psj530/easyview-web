@@ -71,6 +71,7 @@ export default function PLAnalysis({
   const [monthlyGP, setMonthlyGP] = useState<MonthlyData | null>(null);
   const [grossMarginRate, setGrossMarginRate] = useState<MonthlyRateData | null>(null);
   const [opMarginRate, setOpMarginRate] = useState<MonthlyRateData | null>(null);
+  const [netMarginRate, setNetMarginRate] = useState<MonthlyRateData | null>(null);
   const [quarterlyPL, setQuarterlyPL] = useState<QuarterlyPL | null>(null);
   const [sales, setSales] = useState<SalesAnalysis | null>(null);
   const [plTrend, setPlTrend] = useState<PLTrendAccount[]>([]);
@@ -91,6 +92,7 @@ export default function PLAnalysis({
         setMonthlyGP(plData.monthlyGrossProfit);
         setGrossMarginRate(plData.grossMarginRate || null);
         setOpMarginRate(plData.operatingMarginRate || null);
+        setNetMarginRate(plData.netMarginRate || null);
         setQuarterlyPL(plData.quarterlyPL);
         setSales(salesData);
         setPlTrend(plData.plTrend || []);
@@ -177,6 +179,7 @@ export default function PLAnalysis({
           monthlyOP={monthlyOP}
           grossMarginRate={grossMarginRate}
           opMarginRate={opMarginRate}
+          netMarginRate={netMarginRate}
         />
       )}
       {subTab === 1 && <PLTrendTab plTrend={plTrend} plItems={plItems} />}
@@ -197,13 +200,51 @@ function PLSummaryTab({
   monthlyOP,
   grossMarginRate,
   opMarginRate,
+  netMarginRate,
 }: {
   plItems: PLItem[];
   monthlyRevenue: MonthlyData | null;
   monthlyOP: MonthlyData | null;
   grossMarginRate: MonthlyRateData | null;
   opMarginRate: MonthlyRateData | null;
+  netMarginRate: MonthlyRateData | null;
 }) {
+  // Month selection for margin rate charts
+  const [selectedMonths, setSelectedMonths] = useState<Set<number>>(() => {
+    // Default: select last 3 months that have data
+    const months = new Set<number>();
+    if (grossMarginRate?.current) {
+      for (let i = 11; i >= 0 && months.size < 3; i--) {
+        if (grossMarginRate.current[i] != null) months.add(i);
+      }
+    }
+    return months.size > 0 ? months : new Set([6, 7, 8]);
+  });
+  const [selectAll, setSelectAll] = useState(false);
+
+  const toggleMonth = (idx: number) => {
+    setSelectedMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectAll) {
+      setSelectedMonths(new Set());
+    } else {
+      setSelectedMonths(new Set(Array.from({ length: 12 }, (_, i) => i)));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  // Filter margin data to selected months
+  const filterBySelected = (data: (number | null)[] | undefined) => {
+    if (!data) return MONTH_LABELS.map(() => null);
+    return data.map((v, i) => (selectedMonths.has(i) ? v : null));
+  };
   // Extract key metrics from plItems
   const revenue = plItems.find((p) => p.account === "매출액" || p.account === "수익(매출액)");
   const grossProfit = plItems.find((p) => p.account === "매출총이익");
@@ -355,11 +396,30 @@ function PLSummaryTab({
         )}
       </div>
 
-      {/* Margin Rate Trend Charts */}
-      <div className="text-sm font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
-        이익률 추이
+      {/* Margin Rate Trend Charts with Month Selector */}
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
+          이익률 추이
+        </div>
+        <div className="flex items-center gap-1 flex-wrap">
+          <label className="flex items-center gap-1 text-[10px] text-gray-500 cursor-pointer">
+            <input type="checkbox" checked={selectAll} onChange={toggleAll} className="w-3 h-3 accent-[#D04A02]" />
+            모두 선택
+          </label>
+          {MONTH_LABELS.map((label, i) => (
+            <label key={i} className="flex items-center gap-0.5 text-[10px] text-gray-500 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedMonths.has(i)}
+                onChange={() => toggleMonth(i)}
+                className="w-3 h-3 accent-[#D04A02]"
+              />
+              {label}
+            </label>
+          ))}
+        </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
           <div className="text-sm font-semibold text-[#2D2D2D] mb-4">
             매출총이익률 추이
@@ -370,19 +430,18 @@ function PLSummaryTab({
               datasets: [
                 {
                   label: "당기",
-                  data: grossMarginRate?.current || [],
+                  data: filterBySelected(grossMarginRate?.current),
                   borderColor: "#E0301E",
-                  backgroundColor: "rgba(224,48,30,0.1)",
                   fill: false,
                   tension: 0.3,
                   pointBackgroundColor: "#E0301E",
                   pointRadius: 3,
+                  spanGaps: true,
                 },
                 {
                   label: "전기",
                   data: grossMarginRate?.prior || [],
                   borderColor: "#DEDEDE",
-                  backgroundColor: "transparent",
                   fill: false,
                   tension: 0.3,
                   borderDash: [4, 4],
@@ -392,6 +451,7 @@ function PLSummaryTab({
               ],
             }}
             height={200}
+            options={{ scales: { y: { ticks: { callback: (v: string | number) => `${v}%` } } } }}
           />
         </div>
         <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
@@ -404,19 +464,18 @@ function PLSummaryTab({
               datasets: [
                 {
                   label: "당기",
-                  data: opMarginRate?.current || [],
+                  data: filterBySelected(opMarginRate?.current),
                   borderColor: "#E0301E",
-                  backgroundColor: "rgba(224,48,30,0.1)",
                   fill: false,
                   tension: 0.3,
                   pointBackgroundColor: "#E0301E",
                   pointRadius: 3,
+                  spanGaps: true,
                 },
                 {
                   label: "전기",
                   data: opMarginRate?.prior || [],
                   borderColor: "#DEDEDE",
-                  backgroundColor: "transparent",
                   fill: false,
                   tension: 0.3,
                   borderDash: [4, 4],
@@ -426,8 +485,119 @@ function PLSummaryTab({
               ],
             }}
             height={200}
+            options={{ scales: { y: { ticks: { callback: (v: string | number) => `${v}%` } } } }}
           />
         </div>
+        <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
+          <div className="text-sm font-semibold text-[#2D2D2D] mb-4">
+            당기손익률 추이
+          </div>
+          <LineChart
+            data={{
+              labels: MONTH_LABELS,
+              datasets: [
+                {
+                  label: "당기",
+                  data: filterBySelected(netMarginRate?.current),
+                  borderColor: "#E0301E",
+                  fill: false,
+                  tension: 0.3,
+                  pointBackgroundColor: "#E0301E",
+                  pointRadius: 3,
+                  spanGaps: true,
+                },
+                {
+                  label: "전기",
+                  data: netMarginRate?.prior || [],
+                  borderColor: "#DEDEDE",
+                  fill: false,
+                  tension: 0.3,
+                  borderDash: [4, 4],
+                  pointBackgroundColor: "#DEDEDE",
+                  pointRadius: 2,
+                },
+              ],
+            }}
+            height={200}
+            options={{ scales: { y: { ticks: { callback: (v: string | number) => `${v}%` } } } }}
+          />
+        </div>
+      </div>
+
+      {/* 손익 Waterfall Chart */}
+      <div className="text-sm font-semibold text-[#2D2D2D] border-l-[3px] border-[#D04A02] pl-2">
+        손익 Waterfall
+      </div>
+      <div className="bg-white rounded-md shadow-xs border border-[#E8E8E8] p-5">
+        <div className="text-[10px] text-gray-400 mb-3">
+          선택한 연월 간의 손익항목 변화 흐름을 시각적으로 볼 수 있는 그래프 입니다.
+        </div>
+        {(() => {
+          const waterfallItems = plItems.filter(
+            (p) => p.level === 0 && p.current !== 0
+          );
+          if (waterfallItems.length === 0) return <div className="text-xs text-gray-400 text-center py-8">데이터 없음</div>;
+
+          const labels = waterfallItems.map((p) => p.account);
+          // Build waterfall: positive = increase, negative = decrease
+          const increases: (number | null)[] = [];
+          const decreases: (number | null)[] = [];
+          const totals: (number | null)[] = [];
+
+          waterfallItems.forEach((item, i) => {
+            const val = Math.round(item.current / 1e6);
+            const isTotal = item.account === "매출액" || item.account === "매출총이익" || item.account === "영업이익" || item.account === "당기순손익" || item.account === "당기순이익";
+            if (isTotal) {
+              totals.push(val);
+              increases.push(null);
+              decreases.push(null);
+            } else if (val >= 0) {
+              increases.push(val);
+              decreases.push(null);
+              totals.push(null);
+            } else {
+              decreases.push(val);
+              increases.push(null);
+              totals.push(null);
+            }
+          });
+
+          return (
+            <BarChart
+              data={{
+                labels,
+                datasets: [
+                  {
+                    label: "증가",
+                    data: increases,
+                    backgroundColor: "#EB8C00",
+                    borderRadius: 2,
+                  },
+                  {
+                    label: "감소",
+                    data: decreases,
+                    backgroundColor: "#2D2D2D",
+                    borderRadius: 2,
+                  },
+                  {
+                    label: "합계",
+                    data: totals,
+                    backgroundColor: "#D04A02",
+                    borderRadius: 2,
+                  },
+                ],
+              }}
+              height={300}
+              options={{
+                plugins: { legend: { display: true, position: "top" as const } },
+                scales: {
+                  x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                  y: { grid: { color: "#F0F0F0" } },
+                },
+              }}
+            />
+          );
+        })()}
       </div>
     </div>
   );

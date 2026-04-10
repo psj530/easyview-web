@@ -404,6 +404,8 @@ class Database:
         gross_margin_p = [round(monthly_gp_p[i] / monthly_rev_p[i] * 100, 1) if monthly_rev_p[i] else None for i in range(12)]
         op_margin_c = [round(monthly_op_c[i] / monthly_rev_c[i] * 100, 1) if monthly_rev_c[i] else None for i in range(12)]
         op_margin_p = [round(monthly_op_p[i] / monthly_rev_p[i] * 100, 1) if monthly_rev_p[i] else None for i in range(12)]
+        net_margin_c = [round(monthly_ni_c[i] / monthly_rev_c[i] * 100, 1) if monthly_rev_c[i] else None for i in range(12)]
+        net_margin_p = [round(monthly_ni_p[i] / monthly_rev_p[i] * 100, 1) if monthly_rev_p[i] else None for i in range(12)]
 
         # PL Trend (monthly SGA by mgmt account) - use cached data
         pl_trend = []
@@ -442,6 +444,7 @@ class Database:
             'monthlyGrossProfit': {'current': monthly_gp_c, 'prior': monthly_gp_p},
             'grossMarginRate': {'current': gross_margin_c, 'prior': gross_margin_p},
             'operatingMarginRate': {'current': op_margin_c, 'prior': op_margin_p},
+            'netMarginRate': {'current': net_margin_c, 'prior': net_margin_p},
             'plTrend': pl_trend,
             'quarterlyPL': self.get_quarterly_pl(month),
             'expenseChanges': expense_changes,
@@ -804,6 +807,19 @@ class Database:
         top_inc = sorted(customer_changes.items(), key=lambda x: x[1], reverse=True)[:10]
         top_dec = sorted(customer_changes.items(), key=lambda x: x[1])[:10]
 
+        # Journal entries for sales
+        je_rows = conn.execute("""
+            SELECT date, voucher, account, customer, memo,
+                   CASE WHEN side='차변' THEN amount ELSE 0 END as debit,
+                   CASE WHEN side='대변' THEN amount ELSE 0 END as credit
+            FROM je WHERE gubun='PL' AND disclosure='매출액' AND date BETWEEN ? AND ?
+            ORDER BY date DESC, voucher
+            LIMIT 100
+        """, (cs, ce)).fetchall()
+        journal_entries = [{'date': r['date'], 'voucherNo': r['voucher'], 'account': r['account'],
+                           'customer': r['customer'] or '', 'memo': r['memo'] or '',
+                           'debit': round(r['debit']), 'credit': round(r['credit'])} for r in je_rows]
+
         conn.close()
 
         return {
@@ -811,6 +827,7 @@ class Database:
             'topCustomerShare': top_share,
             'topIncreaseCustomers': [{'name': n, 'amount': round(a)} for n, a in top_inc],
             'topDecreaseCustomers': [{'name': n, 'amount': round(a)} for n, a in top_dec if a < 0],
+            'journalEntries': journal_entries,
         }
 
     # ====================================================================
