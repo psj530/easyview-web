@@ -60,7 +60,7 @@ export default function HomePage() {
               <button
                 key={item.id}
                 onClick={() => scrollTo(item.id)}
-                className="text-[13px] text-[#464646] hover:text-[#D04A02] transition-colors"
+                className="text-[13px] text-[#464646] hover:text-[#FD5108] transition-colors"
               >
                 {item.label}
               </button>
@@ -69,7 +69,7 @@ export default function HomePage() {
 
           <Link
             href="/login"
-            className="hidden sm:inline-flex items-center gap-1.5 bg-[#2D2D2D] hover:bg-[#D04A02] text-white text-[12px] font-medium px-4 py-2 rounded transition-colors"
+            className="hidden sm:inline-flex items-center gap-1.5 bg-[#2D2D2D] hover:bg-[#FD5108] text-white text-[12px] font-medium px-4 py-2 rounded transition-colors"
           >
             Report 바로가기
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
@@ -87,8 +87,8 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-br from-[#2D2D2D] via-[#3a3a3a] to-[#2D2D2D]" />
         {/* Subtle pattern overlay */}
         <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
-        {/* PwC accent line */}
-        <div className="absolute top-0 left-0 right-0 h-[3px] bg-[#D04A02]" />
+        {/* PwC accent line - gradient */}
+        <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #FF9F00, #FD5108)" }} />
 
         <div className="relative max-w-5xl mx-auto px-6 py-20 md:py-28">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
@@ -111,7 +111,7 @@ export default function HomePage() {
               <div className="flex items-center gap-3">
                 <Link
                   href="/login"
-                  className="inline-flex items-center gap-2 bg-[#D04A02] hover:bg-[#A33B01] text-white text-sm font-medium px-6 py-3 rounded transition-colors"
+                  className="inline-flex items-center gap-2 bg-[#FD5108] hover:bg-[#D04A02] text-white text-sm font-medium px-6 py-3 rounded transition-colors"
                 >
                   Easy View Report
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
@@ -136,7 +136,7 @@ export default function HomePage() {
                 { value: "PDF", label: "리포트", desc: "원클릭 내보내기" },
               ].map((stat) => (
                 <div key={stat.label} className="bg-white/[0.06] border border-white/[0.08] rounded-lg px-4 py-5 backdrop-blur-sm">
-                  <div className="text-xl font-bold text-[#D04A02] mb-0.5">{stat.value}</div>
+                  <div className="text-xl font-bold mb-0.5" style={{ background: "linear-gradient(135deg, #FF9F00, #FD5108)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{stat.value}</div>
                   <div className="text-[11px] font-semibold text-white/80 mb-1">{stat.label}</div>
                   <div className="text-[10px] text-white/40">{stat.desc}</div>
                 </div>
@@ -150,7 +150,7 @@ export default function HomePage() {
       <section id="services" className="py-16 md:py-24">
         <div className="max-w-6xl mx-auto px-6">
           <div className="mb-10">
-            <div className="text-[11px] font-semibold text-[#D04A02] tracking-wider uppercase mb-2">Our Services</div>
+            <div className="text-[11px] font-semibold text-[#FD5108] tracking-wider uppercase mb-2">Our Services</div>
             <h2 className="text-xl md:text-2xl font-bold text-[#2D2D2D] mb-3">
               Easy View 서비스 안내
             </h2>
@@ -164,7 +164,7 @@ export default function HomePage() {
           <div className="bg-[#F5F5F5] rounded-lg p-5 mb-10">
             <div className="text-sm text-[#464646] leading-relaxed space-y-2">
               <p>
-                PwC는 디지털 기술과 데이터를 모아 확장하는 <a href="https://www.pwc.com/kr/ko/services/ax-node.html" target="_blank" rel="noopener noreferrer" className="text-[#D04A02] font-medium hover:underline">연결점(Node)의 역할</a>을 수행합니다.
+                PwC는 디지털 기술과 데이터를 모아 확장하는 <a href="https://www.pwc.com/kr/ko/services/ax-node.html" target="_blank" rel="noopener noreferrer" className="text-[#FD5108] font-medium hover:underline">연결점(Node)의 역할</a>을 수행합니다.
                 이를 통해, 단순한 디지털 서비스의 제공자가 아니라 기업들의 디지털 혁신 파트너로 도약하는 것을 목표로 하고 있습니다.
               </p>
               <p>
@@ -239,8 +239,8 @@ export default function HomePage() {
                 ),
               },
             ].map((card) => (
-              <div key={card.title} className="border border-[#E8E8E8] rounded-lg p-5 hover:border-[#D04A02]/30 hover:shadow-sm transition-all">
-                <div className="w-9 h-9 rounded bg-[#F5F5F5] text-[#D04A02] flex items-center justify-center mb-3">
+              <div key={card.title} className="border border-[#E8E8E8] rounded-lg p-5 hover:border-[#FD5108]/30 hover:shadow-sm transition-all">
+                <div className="w-9 h-9 rounded flex items-center justify-center mb-3 text-white" style={{ background: "linear-gradient(135deg, #FF9F00, #FD5108)" }}>
                   {card.icon}
                 </div>
                 <h3 className="text-sm font-semibold text-[#2D2D2D] mb-1.5">{card.title}</h3>
@@ -255,7 +255,7 @@ export default function HomePage() {
       <section id="manual" className="bg-[#F5F5F5] py-16 md:py-24">
         <div className="max-w-6xl mx-auto px-6">
           <div className="mb-10">
-            <div className="text-[11px] font-semibold text-[#D04A02] tracking-wider uppercase mb-2">User Guide</div>
+            <div className="text-[11px] font-semibold text-[#FD5108] tracking-wider uppercase mb-2">User Guide</div>
             <h2 className="text-xl md:text-2xl font-bold text-[#2D2D2D] mb-3">매뉴얼 &amp; 가이드</h2>
             <p className="text-sm text-[#7D7D7D]">
               Easy View의 주요 기능을 동영상 매뉴얼과 상세 가이드를 통해 확인하실 수 있습니다.
@@ -265,7 +265,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* 동영상 매뉴얼 (국문) */}
             <div className="bg-white rounded-lg border border-[#E8E8E8] p-5 flex items-start gap-4">
-              <div className="shrink-0 w-10 h-10 rounded bg-[#D04A02]/10 flex items-center justify-center text-[#D04A02]">
+              <div className="shrink-0 w-10 h-10 rounded bg-[#FD5108]/10 flex items-center justify-center text-[#FD5108]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                   <polygon points="5 3 19 12 5 21 5 3" stroke="currentColor" strokeWidth="1.5" fill="currentColor" opacity="0.2" />
                 </svg>
@@ -328,7 +328,7 @@ export default function HomePage() {
       <section id="digital" className="bg-[#2D2D2D] py-16 md:py-24">
         <div className="max-w-6xl mx-auto px-6">
           <div className="mb-10">
-            <div className="text-[11px] font-semibold text-[#D04A02] tracking-wider uppercase mb-2">Digital &amp; AI</div>
+            <div className="text-[11px] font-semibold text-[#FD5108] tracking-wider uppercase mb-2">Digital &amp; AI</div>
             <h2 className="text-xl md:text-2xl font-bold text-white mb-3">Digital &amp; AI</h2>
             <p className="text-sm text-white/50 leading-relaxed max-w-3xl">
               기업이 Data를 기반으로 한 신속, 정확한 의사결정과 AI 적용을 위한
@@ -339,7 +339,7 @@ export default function HomePage() {
               href="https://www.pwc.com/kr/ko/services/ax-node.html"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-3 text-[12px] font-medium text-[#D04A02] hover:text-[#E87722] transition-colors"
+              className="inline-flex items-center gap-1 mt-3 text-[12px] font-medium text-[#FD5108] hover:text-[#E87722] transition-colors"
             >
               PwC AX Node 자세히 보기
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -355,7 +355,7 @@ export default function HomePage() {
               { num: "03", text: "비즈니스 의사결정 지원을 위한 Data Analytics 서비스 제공" },
             ].map((item) => (
               <div key={item.num} className="flex items-center gap-3 bg-white/[0.04] border border-white/[0.08] rounded-lg px-5 py-3.5">
-                <div className="shrink-0 w-7 h-7 rounded-full bg-[#D04A02] text-white text-[11px] font-bold flex items-center justify-center">
+                <div className="shrink-0 w-7 h-7 rounded-full bg-[#FD5108] text-white text-[11px] font-bold flex items-center justify-center">
                   {item.num}
                 </div>
                 <div className="text-sm text-white/70">{item.text}</div>
@@ -380,8 +380,8 @@ export default function HomePage() {
                 rel="noopener noreferrer"
                 className={`px-3 py-1.5 rounded text-[12px] font-medium border transition-colors ${
                   tag.accent
-                    ? "bg-[#D04A02] text-white border-[#D04A02] hover:bg-[#A33B01]"
-                    : "bg-transparent text-white/40 border-white/15 hover:border-[#D04A02] hover:text-[#D04A02]"
+                    ? "bg-[#FD5108] text-white border-[#FD5108] hover:bg-[#D04A02]"
+                    : "bg-transparent text-white/40 border-white/15 hover:border-[#FD5108] hover:text-[#FD5108]"
                 }`}
               >
                 {tag.label}
@@ -395,7 +395,7 @@ export default function HomePage() {
       <section id="managed" className="py-16 md:py-24">
         <div className="max-w-6xl mx-auto px-6">
           <div className="mb-10">
-            <div className="text-[11px] font-semibold text-[#D04A02] tracking-wider uppercase mb-2">Managed Service</div>
+            <div className="text-[11px] font-semibold text-[#FD5108] tracking-wider uppercase mb-2">Managed Service</div>
             <h2 className="text-xl md:text-2xl font-bold text-[#2D2D2D] mb-3">Managed Service</h2>
             <p className="text-sm text-[#7D7D7D] leading-relaxed max-w-3xl">
               기업 Business Process 관련 아웃소싱 서비스를 제공하여 필요한 전문성을 안정적으로 확보하고,
@@ -405,7 +405,7 @@ export default function HomePage() {
               href="https://www.pwc.com/kr/ko/services/ax-node.html"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-3 text-[12px] font-medium text-[#D04A02] hover:text-[#A33B01] transition-colors"
+              className="inline-flex items-center gap-1 mt-3 text-[12px] font-medium text-[#FD5108] hover:text-[#D04A02] transition-colors"
             >
               PwC AX Node 자세히 보기
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -442,7 +442,7 @@ export default function HomePage() {
                 href={tag.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded text-[12px] font-medium border border-[#E8E8E8] text-[#464646] hover:border-[#D04A02] hover:text-[#D04A02] transition-colors"
+                className="px-3 py-1.5 rounded text-[12px] font-medium border border-[#E8E8E8] text-[#464646] hover:border-[#FD5108] hover:text-[#FD5108] transition-colors"
               >
                 {tag.label}
               </a>
@@ -457,7 +457,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
             {/* Left */}
             <div>
-              <div className="text-[11px] font-semibold text-[#D04A02] tracking-wider uppercase mb-2">Contact Us</div>
+              <div className="text-[11px] font-semibold text-[#FD5108] tracking-wider uppercase mb-2">Contact Us</div>
               <h2 className="text-xl md:text-2xl font-bold text-[#2D2D2D] mb-3">문의하기</h2>
               <p className="text-sm text-[#7D7D7D] leading-relaxed mb-6">
                 기타 문의사항이 있으신 경우 편하게 연락 주시기 바랍니다.
@@ -466,7 +466,7 @@ export default function HomePage() {
 
               <div className="space-y-3">
                 <div className="flex items-center gap-3 bg-white rounded-lg border border-[#E8E8E8] p-4">
-                  <div className="shrink-0 w-9 h-9 rounded bg-[#D04A02]/10 flex items-center justify-center text-[#D04A02]">
+                  <div className="shrink-0 w-9 h-9 rounded bg-[#FD5108]/10 flex items-center justify-center text-[#FD5108]">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" strokeWidth="1.5" />
                       <path d="M22 6l-10 7L2 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -474,28 +474,28 @@ export default function HomePage() {
                   </div>
                   <div>
                     <div className="text-[11px] text-[#7D7D7D]">이메일</div>
-                    <a href="mailto:kr_easyview@pwc.com" className="text-sm font-medium text-[#2D2D2D] hover:text-[#D04A02] transition-colors">
+                    <a href="mailto:kr_easyview@pwc.com" className="text-sm font-medium text-[#2D2D2D] hover:text-[#FD5108] transition-colors">
                       kr_easyview@pwc.com
                     </a>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 bg-white rounded-lg border border-[#E8E8E8] p-4">
-                  <div className="shrink-0 w-9 h-9 rounded bg-[#D04A02]/10 flex items-center justify-center text-[#D04A02]">
+                  <div className="shrink-0 w-9 h-9 rounded bg-[#FD5108]/10 flex items-center justify-center text-[#FD5108]">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                       <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" stroke="currentColor" strokeWidth="1.5" />
                     </svg>
                   </div>
                   <div>
                     <div className="text-[11px] text-[#7D7D7D]">연락처</div>
-                    <a href="tel:010-9136-7136" className="text-sm font-medium text-[#2D2D2D] hover:text-[#D04A02] transition-colors">
+                    <a href="tel:010-9136-7136" className="text-sm font-medium text-[#2D2D2D] hover:text-[#FD5108] transition-colors">
                       010-9136-7136
                     </a>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 bg-white rounded-lg border border-[#E8E8E8] p-4">
-                  <div className="shrink-0 w-9 h-9 rounded bg-[#D04A02]/10 flex items-center justify-center text-[#D04A02]">
+                  <div className="shrink-0 w-9 h-9 rounded bg-[#FD5108]/10 flex items-center justify-center text-[#FD5108]">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                       <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                       <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="1.5" />
@@ -520,7 +520,7 @@ export default function HomePage() {
                     name="company"
                     placeholder="회사명을 입력해주세요"
                     required
-                    className="w-full px-3 py-2 border border-[#E8E8E8] rounded text-sm focus:outline-none focus:border-[#D04A02] transition-colors"
+                    className="w-full px-3 py-2 border border-[#E8E8E8] rounded text-sm focus:outline-none focus:border-[#FD5108] transition-colors"
                   />
                 </div>
                 <div>
@@ -530,7 +530,7 @@ export default function HomePage() {
                     name="name"
                     placeholder="성함을 입력해주세요"
                     required
-                    className="w-full px-3 py-2 border border-[#E8E8E8] rounded text-sm focus:outline-none focus:border-[#D04A02] transition-colors"
+                    className="w-full px-3 py-2 border border-[#E8E8E8] rounded text-sm focus:outline-none focus:border-[#FD5108] transition-colors"
                   />
                 </div>
                 <div>
@@ -540,7 +540,7 @@ export default function HomePage() {
                     name="email"
                     placeholder="이메일을 입력해주세요"
                     required
-                    className="w-full px-3 py-2 border border-[#E8E8E8] rounded text-sm focus:outline-none focus:border-[#D04A02] transition-colors"
+                    className="w-full px-3 py-2 border border-[#E8E8E8] rounded text-sm focus:outline-none focus:border-[#FD5108] transition-colors"
                   />
                 </div>
                 <div>
@@ -549,12 +549,12 @@ export default function HomePage() {
                     name="message"
                     rows={4}
                     placeholder="문의 내용을 입력해주세요"
-                    className="w-full px-3 py-2 border border-[#E8E8E8] rounded text-sm focus:outline-none focus:border-[#D04A02] transition-colors resize-none"
+                    className="w-full px-3 py-2 border border-[#E8E8E8] rounded text-sm focus:outline-none focus:border-[#FD5108] transition-colors resize-none"
                   />
                 </div>
                 <button
                   type="submit"
-                  className="w-full flex items-center justify-center gap-1.5 bg-[#2D2D2D] hover:bg-[#D04A02] text-white text-sm font-medium py-2.5 rounded transition-colors"
+                  className="w-full flex items-center justify-center gap-1.5 bg-[#2D2D2D] hover:bg-[#FD5108] text-white text-sm font-medium py-2.5 rounded transition-colors"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                     <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -577,9 +577,9 @@ export default function HomePage() {
               <span className="text-[12px] font-medium text-white/60">Worldwide Easy View</span>
             </div>
             <div className="flex items-center gap-4">
-              <Link href="/login" className="text-[12px] text-white/40 hover:text-[#D04A02] transition-colors">Easy View Report</Link>
-              <a href="mailto:kr_easyview@pwc.com" className="text-[12px] text-white/40 hover:text-[#D04A02] transition-colors">kr_easyview@pwc.com</a>
-              <a href="https://www.pwc.com/kr/ko/services/ax-node.html" target="_blank" rel="noopener noreferrer" className="text-[12px] text-white/40 hover:text-[#D04A02] transition-colors">PwC AX Node</a>
+              <Link href="/login" className="text-[12px] text-white/40 hover:text-[#FD5108] transition-colors">Easy View Report</Link>
+              <a href="mailto:kr_easyview@pwc.com" className="text-[12px] text-white/40 hover:text-[#FD5108] transition-colors">kr_easyview@pwc.com</a>
+              <a href="https://www.pwc.com/kr/ko/services/ax-node.html" target="_blank" rel="noopener noreferrer" className="text-[12px] text-white/40 hover:text-[#FD5108] transition-colors">PwC AX Node</a>
             </div>
           </div>
           <div className="border-t border-white/10 pt-6">

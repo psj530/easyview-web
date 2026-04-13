@@ -1,13 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --pwc-orange: #D04A02;
-  --pwc-orange-light: #E87722;
-  --pwc-orange-dark: #A33B01;
+  --pwc-orange: #FD5108;
+  --pwc-orange-light: #FE7C39;
+  --pwc-orange-dark: #D04A02;
+  --pwc-orange-gradient: linear-gradient(135deg, #FF9F00 0%, #FD7204 47%, #FD5108 100%);
   --pwc-black: #2D2D2D;
   --pwc-gray-dark: #464646;
-  --pwc-gray: #7D7D7D;
-  --pwc-gray-light: #E8E8E8;
+  --pwc-gray: #A1A8B3;
+  --pwc-gray-medium: #B5BCC4;
+  --pwc-gray-light: #EBEBEB;
   --pwc-gray-bg: #F5F5F5;
   --pwc-white: #FFFFFF;
   --background: #FFFFFF;
@@ -30,7 +32,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Noto Sans KR", sans-serif;
+  font-family: Arial, "맑은 고딕", "Malgun Gothic", sans-serif;
 }
 
 /* Scrollbar */
