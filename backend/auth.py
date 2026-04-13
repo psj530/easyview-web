@@ -16,7 +16,7 @@ from datetime import datetime
 
 AUTH_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "auth.db")
 JWT_SECRET = os.environ.get("JWT_SECRET", "easyview-secret-key-change-in-production")
-JWT_EXPIRY = 24 * 60 * 60  # 24 hours
+JWT_EXPIRY = 7 * 24 * 60 * 60  # 7 days
 
 
 def _hash_password(password: str, salt: Optional[bytes] = None) -> tuple[str, str]:

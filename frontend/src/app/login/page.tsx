@@ -15,6 +15,14 @@ export default function LoginPage() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // Show expired message if redirected from token expiration
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("expired") === "1") {
+        setError("세션이 만료되었습니다. 다시 로그인해주세요.");
+      }
+    }
+
     if (getAutoLogin() && getToken()) {
       router.replace("/reports");
       return;

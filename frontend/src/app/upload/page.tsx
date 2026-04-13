@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PwCLogo from "@/components/PwCLogo";
 import { useAuth } from "@/contexts/AuthContext";
-import { getToken, type Company } from "@/lib/auth";
+import { getToken, fetchWithAuth, type Company } from "@/lib/auth";
 
 interface FileSlot {
   key: string;
@@ -144,13 +144,11 @@ export default function UploadPage() {
       if (fileSlots[3].file) formData.append("etc_file", fileSlots[3].file);
 
       const monthStr = selectedMonth.toString().padStart(2, "0");
-      const token = getToken();
 
-      const res = await fetch(
+      const res = await fetchWithAuth(
         `/api/upload/v2?company_code=${selectedCompany.code}&year=${selectedYear}&month=${monthStr}`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         }
       );

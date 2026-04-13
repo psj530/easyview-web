@@ -106,5 +106,15 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  return fetch(url, { ...options, headers });
+  const res = await fetch(url, { ...options, headers });
+
+  // Token expired or invalid → auto logout and redirect
+  if (res.status === 401) {
+    clearAuth();
+    if (typeof window !== "undefined") {
+      window.location.href = "/login?expired=1";
+    }
+  }
+
+  return res;
 }
