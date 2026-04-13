@@ -83,14 +83,14 @@ export default function DashboardPage() {
       <div className="space-y-0">
         {/* Print header */}
         <div className="print-header mb-6 hidden print:block text-center">
-          <h1 className="text-xl font-bold text-[#2D2D2D]">
+          <h1 className="text-xl font-bold text-[#222C40]">
             PwC Easy View 3.0 — Full Report
           </h1>
         </div>
 
         {/* All tabs rendered sequentially with page breaks */}
         <div>
-          <div className="bg-[#2D2D2D] rounded-t-lg px-6 py-3 mb-4">
+          <div className="bg-[#222C40] rounded-t-lg px-6 py-3 mb-4">
             <span className="text-white text-sm font-semibold">Summary</span>
           </div>
           <div className="mb-4">
@@ -108,7 +108,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="break-before-page">
-          <div className="bg-[#2D2D2D] rounded-t-lg px-6 py-3 mb-4">
+          <div className="bg-[#222C40] rounded-t-lg px-6 py-3 mb-4">
             <span className="text-white text-sm font-semibold">손익분석</span>
           </div>
           <div className="mb-4">
@@ -123,7 +123,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="break-before-page">
-          <div className="bg-[#2D2D2D] rounded-t-lg px-6 py-3 mb-4">
+          <div className="bg-[#222C40] rounded-t-lg px-6 py-3 mb-4">
             <span className="text-white text-sm font-semibold">재무상태분석</span>
           </div>
           <div className="mb-4">
@@ -138,7 +138,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="break-before-page">
-          <div className="bg-[#2D2D2D] rounded-t-lg px-6 py-3 mb-4">
+          <div className="bg-[#222C40] rounded-t-lg px-6 py-3 mb-4">
             <span className="text-white text-sm font-semibold">전표분석</span>
           </div>
           <div className="mb-4">
@@ -147,7 +147,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="break-before-page">
-          <div className="bg-[#2D2D2D] rounded-t-lg px-6 py-3 mb-4">
+          <div className="bg-[#222C40] rounded-t-lg px-6 py-3 mb-4">
             <span className="text-white text-sm font-semibold">시나리오분석</span>
           </div>
           <div className="mb-4">
@@ -158,11 +158,11 @@ export default function DashboardPage() {
         {/* Loading overlay while rendering */}
         <div className="fixed inset-0 bg-white/80 z-[100] flex items-center justify-center print:hidden">
           <div className="text-center">
-            <div className="animate-spin w-10 h-10 border-3 border-[#D04A02] border-t-transparent rounded-full mx-auto mb-4" />
-            <p className="text-sm font-medium text-[#2D2D2D]">
+            <div className="animate-spin w-10 h-10 border-3 border-[#FD5108] border-t-transparent rounded-full mx-auto mb-4" />
+            <p className="text-sm font-medium text-[#222C40]">
               전체 리포트 준비 중...
             </p>
-            <p className="text-xs text-[#7D7D7D] mt-1">
+            <p className="text-xs text-[#4B535E] mt-1">
               모든 탭을 렌더링하고 있습니다. 잠시만 기다려주세요.
             </p>
           </div>
@@ -175,8 +175,8 @@ export default function DashboardPage() {
   return (
     <div>
       {/* Main Tab Navigation - sticky below header */}
-      <div className="sticky top-14 z-40 -mx-6 px-6 pt-6 pb-0 bg-[#F5F5F5]">
-        <div className="bg-[#2D2D2D] rounded-t-lg overflow-hidden">
+      <div className="sticky top-14 z-40 -mx-6 px-6 pt-6 pb-0 bg-[#F5F7F8]">
+        <div className="bg-[#222C40] rounded-t-lg overflow-hidden">
           <div className="flex">
             {TABS.map((tab) => (
               <button
@@ -190,7 +190,7 @@ export default function DashboardPage() {
               >
                 {tab.label}
                 {activeTab === tab.key && (
-                  <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#D04A02]" />
+                  <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FD5108]" />
                 )}
               </button>
             ))}

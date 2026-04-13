@@ -1,19 +1,29 @@
 @import "tailwindcss";
 
 :root {
+  /* PwC Official Color System (from Tax Agent / Samil PwC) */
   --pwc-orange: #FD5108;
   --pwc-orange-light: #FE7C39;
   --pwc-orange-dark: #D04A02;
+  --pwc-orange-100: #FFAA72;
+  --pwc-orange-50: #FFCDA8;
+  --pwc-orange-25: #FFE8D4;
+  --pwc-orange-bg: #FFF5ED;
   --pwc-orange-gradient: linear-gradient(135deg, #FF9F00 0%, #FD7204 47%, #FD5108 100%);
-  --pwc-black: #2D2D2D;
-  --pwc-gray-dark: #464646;
+  --pwc-black: #222C40;
+  --pwc-text: #4B535E;
+  --pwc-gray-dark: #474747;
   --pwc-gray: #A1A8B3;
   --pwc-gray-medium: #B5BCC4;
-  --pwc-gray-light: #EBEBEB;
-  --pwc-gray-bg: #F5F5F5;
+  --pwc-gray-light: #DFE3E6;
+  --pwc-gray-lighter: #EEEFF1;
+  --pwc-gray-bg: #F5F7F8;
   --pwc-white: #FFFFFF;
+  --pwc-red: #FA143C;
+  --pwc-green: #059669;
+  --pwc-yellow: #E9B01F;
   --background: #FFFFFF;
-  --foreground: #2D2D2D;
+  --foreground: #222C40;
 }
 
 @theme inline {
@@ -22,17 +32,23 @@
   --color-pwc-orange: var(--pwc-orange);
   --color-pwc-orange-light: var(--pwc-orange-light);
   --color-pwc-orange-dark: var(--pwc-orange-dark);
+  --color-pwc-orange-bg: var(--pwc-orange-bg);
   --color-pwc-black: var(--pwc-black);
+  --color-pwc-text: var(--pwc-text);
   --color-pwc-gray-dark: var(--pwc-gray-dark);
   --color-pwc-gray: var(--pwc-gray);
   --color-pwc-gray-light: var(--pwc-gray-light);
   --color-pwc-gray-bg: var(--pwc-gray-bg);
+  --color-pwc-red: var(--pwc-red);
+  --color-pwc-green: var(--pwc-green);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, "맑은 고딕", "Malgun Gothic", sans-serif;
+  font-family: "Helvetica Neue", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Scrollbar */
