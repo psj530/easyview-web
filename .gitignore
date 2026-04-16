@@ -1,0 +1,27 @@
+# Dependencies
+frontend/node_modules/
+frontend/.next/
+backend/__pycache__/
+backend/*.pyc
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+frontend/out/
+*.log
+*.db
+*.db-shm
+*.db-wal
+docs/NotoSansKR.ttf
+docs/*.pdf
+*.pdf

@@ -1,0 +1,206 @@
+@import "tailwindcss";
+
+:root {
+  /* PwC Official Color System (from Tax Agent / Samil PwC) */
+  --pwc-orange: #FD5108;
+  --pwc-orange-light: #FE7C39;
+  --pwc-orange-dark: #D04A02;
+  --pwc-orange-100: #FFAA72;
+  --pwc-orange-50: #FFCDA8;
+  --pwc-orange-25: #FFE8D4;
+  --pwc-orange-bg: #FFF5ED;
+  --pwc-orange-gradient: linear-gradient(135deg, #FF9F00 0%, #FD7204 47%, #FD5108 100%);
+  --pwc-black: #222C40;
+  --pwc-text: #4B535E;
+  --pwc-gray-dark: #474747;
+  --pwc-gray: #A1A8B3;
+  --pwc-gray-medium: #B5BCC4;
+  --pwc-gray-light: #DFE3E6;
+  --pwc-gray-lighter: #EEEFF1;
+  --pwc-gray-bg: #F5F7F8;
+  --pwc-white: #FFFFFF;
+  --pwc-red: #FA143C;
+  --pwc-green: #059669;
+  --pwc-yellow: #E9B01F;
+  --background: #FFFFFF;
+  --foreground: #222C40;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-pwc-orange: var(--pwc-orange);
+  --color-pwc-orange-light: var(--pwc-orange-light);
+  --color-pwc-orange-dark: var(--pwc-orange-dark);
+  --color-pwc-orange-bg: var(--pwc-orange-bg);
+  --color-pwc-black: var(--pwc-black);
+  --color-pwc-text: var(--pwc-text);
+  --color-pwc-gray-dark: var(--pwc-gray-dark);
+  --color-pwc-gray: var(--pwc-gray);
+  --color-pwc-gray-light: var(--pwc-gray-light);
+  --color-pwc-gray-bg: var(--pwc-gray-bg);
+  --color-pwc-red: var(--pwc-red);
+  --color-pwc-green: var(--pwc-green);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Helvetica Neue", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Hero & YouTube overlay animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.7); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes heroFloat {
+  0%, 100% { transform: translateY(0px);   }
+  50%       { transform: translateY(-14px); }
+}
+
+@keyframes barRise {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+@keyframes drawSparkline {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1;   }
+  50%       { opacity: 0.4; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--pwc-gray-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--pwc-gray);
+  border-radius: 3px;
+}
+
+/* Table styles */
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--pwc-gray-light);
+}
+
+th {
+  background: var(--pwc-gray-bg);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--pwc-gray-dark);
+  text-align: left;
+  white-space: nowrap;
+}
+
+td {
+  font-size: 0.8125rem;
+}
+
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Print styles for PDF export */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  body {
+    background: white !important;
+    font-size: 11px !important;
+  }
+
+  /* Hide header */
+  header {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Preserve grid layout */
+  .grid {
+    display: grid !important;
+  }
+  .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
+  .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .lg\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+
+  /* Preserve flex layout */
+  .flex { display: flex !important; }
+
+  /* Prevent page breaks inside cards */
+  .rounded-md {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Chart canvas should be visible */
+  canvas {
+    max-width: 100% !important;
+  }
+
+  /* Keep colored borders */
+  [style*="border-top"] {
+    border-top-width: 3px !important;
+  }
+
+  /* Page breaks for full PDF export */
+  .break-before-page {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  /* Hide sticky positioning in print */
+  .sticky {
+    position: static !important;
+  }
+
+  /* Show print header */
+  .print-header {
+    display: block !important;
+  }
+}
