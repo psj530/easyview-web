@@ -2,7 +2,7 @@
 
 > 이 문서는 Claude와의 대화에서 진행한 전체 작업 내역과 현재 상태, 남은 TODO를 정리한 것입니다.
 > 새 대화 시작 시 이 파일을 첨부하면 이어서 작업할 수 있습니다.
-> 최종 업데이트: 2026-04-09
+> 최종 업데이트: 2026-04-16
 
 ---
 
@@ -61,6 +61,10 @@ easyview-web/
 │       │   │   └── page.tsx      # 리포트 목록 (생성된 리포트 조회)
 │       │   ├── upload/
 │       │   │   └── page.tsx      # 데이터 업로드 & 리포트 생성
+│       │   ├── documents/
+│       │   │   ├── page.tsx      # 자료게시판 메인 (제출현황 + 파일 아카이브)
+│       │   │   └── new/
+│       │   │       └── page.tsx  # 자료 업로드 & 게시글 작성
 │       │   └── dashboard/
 │       │       ├── layout.tsx    # 대시보드 레이아웃 (라이트 헤더)
 │       │       └── page.tsx      # 대시보드 (5탭, 필터, sticky 탭)
@@ -90,6 +94,7 @@ easyview-web/
 ├── .gitignore
 ├── README.md
 └── PROJECT_CONTEXT.md            # 이 파일
+
 ```
 
 ---
@@ -104,11 +109,16 @@ easyview-web/
 /reports            리포트 목록 (생성된 리포트 조회 + 새 리포트 생성 버튼)
     ↓ "리포트 보기"         ↓ "새 리포트 생성"
 /dashboard          대시보드 (5탭)     /upload    데이터 업로드 & 리포트 생성
+
+/documents          자료게시판
+    - admin: 회사별 제출현황 매트릭스 (메인) + 전체 파일 아카이브 (접이식)
+    - 일반 유저: 본인 회사 파일 목록만
+/documents/new      자료 업로드 & 게시글 작성
 ```
 
 ### 공통 헤더 네비게이션
 ```
-[pwc 로고 | Easy View]   [리포트]  [새 리포트]  [서비스 소개]     사용자명 | 로그아웃
+[pwc 로고 | Easy View]   [리포트]  [새 리포트]  [자료실]  [서비스 소개]     사용자명 | 로그아웃
 ```
 
 ---
@@ -127,6 +137,28 @@ easyview-web/
 - ✅ 전표 Drill-down, BS 계정 상세, 전표검색 (페이지네이션)
 - ✅ PDF Export (window.print 기반, 인쇄 CSS 최적화)
 - ✅ 홈페이지 (서비스 안내, 매뉴얼, Digital & AI, Managed Service, Contact)
+
+### Phase 3: 자료게시판 (2026-04-16 완료)
+- ✅ **자료게시판 페이지** `/documents` — admin: 제출현황 매트릭스 + 접이식 파일 아카이브 / 일반 유저: 파일 목록
+- ✅ **게시글 작성 페이지** `/documents/new` — 카테고리 선택(필수/선택 구분), 결산기간 입력, 파일 드래그&드롭 업로드
+- ✅ **카테고리 8개** — 필수 3개(전표 JE/GL, 시산표 TB, BS/PL) + 선택 5개(거래처 Mapping, Cost Center, CoA, 세미커넥터, 기타)
+- ✅ **제출현황 매트릭스** — 회사 × 카테고리 전체 조합 표시, 필수 제출 진행률, 국가/ERP 배지
+- ✅ **제출 요청 이메일** — 미제출 항목에 요청 버튼 → 수신자/제목/본문 편집 후 발송 (SMTP 미설정 시 DB 기록만)
+- ✅ **ERP/국가 정보** — companies 테이블에 country, erp_system 컬럼 추가 (마이그레이션 자동 적용)
+- ✅ **결산기간 필드** — doc_posts에 period_start, period_end 추가
+- ✅ **필터** — 회사(admin only), 결산연도, 필수 항목만 토글
+- ✅ **파일 저장** — `backend/documents/{company_id}/{uuid}.{ext}`
+
+**새 DB 테이블:** `doc_categories`, `doc_posts`, `doc_requests`
+**확장된 테이블:** `companies` (+country, +erp_system)
+
+**미완료 (향후):**
+- [ ] 미제출 건수 네비게이션 배지 (`자료실 (5)`)
+- [ ] 일괄 제출 요청 (미제출 전체 회사에 한 번에 이메일)
+- [ ] ERP별 자료요청서 PDF 자동 첨부 (data_temp/ 폴더 내 23개 PDF 준비됨)
+- [ ] 제출현황 CSV 내보내기
+
+---
 
 ### Phase 2: 인증 & 업로드 (2026-04-09 완료)
 - ✅ **로그인 페이지** - 이메일/비밀번호 인증, 자동로그인, 삼일 보안 정책 안내
@@ -198,6 +230,15 @@ easyview-web/
 | GET | /api/scenarios | - | 시나리오 6개 |
 | GET | /api/scenarios/{id} | - | 개별 시나리오 |
 | POST | /api/upload | - | CSV 업로드 (레거시) |
+| GET | /api/documents/categories | JWT | 카테고리 목록 (is_required 포함) |
+| GET | /api/documents/years | JWT | 결산기간 연도 목록 |
+| GET | /api/documents | JWT | 게시글 목록 (회사/연도/필수 필터, 페이지네이션) |
+| POST | /api/documents | JWT | 게시글 작성 + 파일 업로드 |
+| DELETE | /api/documents/{id} | JWT | 게시글 삭제 (본인 또는 admin) |
+| GET | /api/documents/{id}/download | JWT | 파일 다운로드 |
+| GET | /api/documents/admin/status | JWT(admin) | 회사별 제출현황 매트릭스 |
+| POST | /api/documents/admin/request | JWT(admin) | 제출 요청 생성 |
+| POST | /api/documents/admin/request/{id}/send-email | JWT(admin) | 제출 요청 이메일 발송 |
 
 ---
 

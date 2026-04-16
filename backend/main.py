@@ -4,15 +4,18 @@ PwC Easy View 3.0 - FastAPI Backend
 Serves financial data from SQLite database as REST API endpoints.
 """
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Depends, Header
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Depends, Header, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from typing import Optional, List
 import os
 import shutil
+import uuid
 import smtplib
 import ssl
 from email.message import EmailMessage
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
 from database import Database
@@ -44,8 +47,17 @@ app.add_middleware(
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INPUT_DIR = os.path.join(BASE_DIR, "input")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+DOCS_DIR = os.path.join(BASE_DIR, "documents")
 os.makedirs(INPUT_DIR, exist_ok=True)
 os.makedirs(ASSETS_DIR, exist_ok=True)
+os.makedirs(DOCS_DIR, exist_ok=True)
+
+# Email config (optional — set env vars to enable real sending)
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+EMAIL_FROM = os.environ.get("EMAIL_FROM", "noreply@pwc.com")
 
 # Global database
 db = Database(BASE_DIR)
@@ -539,6 +551,234 @@ async def get_meta():
     if not db.is_loaded:
         raise HTTPException(status_code=404, detail="데이터 미로드")
     return db.get_meta()
+
+
+# ===== Document Board =====
+
+def _send_email(to_email: str, subject: str, body: str) -> bool:
+    """Send email via SMTP. Returns True if sent, False if SMTP not configured."""
+    if not SMTP_HOST or not SMTP_USER:
+        return False
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = EMAIL_FROM
+        msg["To"] = to_email
+        msg.attach(MIMEText(body, "html", "utf-8"))
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(EMAIL_FROM, [to_email], msg.as_string())
+        return True
+    except Exception as e:
+        print(f"[EMAIL ERROR] {e}")
+        return False
+
+
+@app.get("/api/documents/categories")
+async def get_doc_categories(user=Depends(get_current_user)):
+    return {"categories": auth_db.get_doc_categories()}
+
+
+@app.post("/api/documents/categories")
+async def add_doc_category(body: dict, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 카테고리를 추가할 수 있습니다.")
+    name = body.get("name", "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="카테고리명을 입력하세요.")
+    try:
+        cat = auth_db.add_doc_category(name, body.get("description", ""))
+        return cat
+    except Exception:
+        raise HTTPException(status_code=400, detail="이미 존재하는 카테고리명입니다.")
+
+
+@app.get("/api/documents")
+async def get_doc_posts(
+    category_id: Optional[int] = Query(None),
+    company_id: Optional[int] = Query(None),
+    period_year: Optional[int] = Query(None),
+    required_only: bool = Query(False),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    user=Depends(get_current_user),
+):
+    is_admin = user.get("role") == "admin"
+    return auth_db.get_doc_posts(
+        user_id=user["user_id"],
+        is_admin=is_admin,
+        category_id=category_id,
+        company_id=company_id if is_admin else None,
+        period_year=period_year,
+        required_only=required_only,
+        page=page,
+        per_page=per_page,
+    )
+
+
+@app.get("/api/documents/years")
+async def get_doc_years(user=Depends(get_current_user)):
+    """Return distinct years available in doc_posts for period filter."""
+    return {"years": auth_db.get_doc_post_years()}
+
+
+@app.post("/api/documents")
+async def create_doc_post(
+    category_id: int = Form(...),
+    title: str = Form(...),
+    content: str = Form(""),
+    company_id: Optional[int] = Form(None),
+    period_start: str = Form(""),
+    period_end: str = Form(""),
+    file: Optional[UploadFile] = File(None),
+    user=Depends(get_current_user),
+):
+    is_admin = user.get("role") == "admin"
+
+    # Determine company
+    if not is_admin:
+        # Use user's first (and usually only) accessible company
+        companies = auth_db.get_user_companies(user["user_id"])
+        if not companies:
+            raise HTTPException(status_code=403, detail="접근 가능한 회사가 없습니다.")
+        comp = companies[0]
+        company_id = comp["id"]
+        company_name = comp["name"]
+    else:
+        if company_id:
+            all_companies = auth_db.get_all_companies()
+            comp = next((c for c in all_companies if c["id"] == company_id), None)
+            company_name = comp["name"] if comp else ""
+        else:
+            company_name = "삼일회계법인"
+
+    # Handle file upload
+    file_name = ""
+    file_path = ""
+    file_size = 0
+    if file and file.filename:
+        ext = os.path.splitext(file.filename)[1]
+        safe_name = f"{uuid.uuid4().hex}{ext}"
+        company_dir = os.path.join(DOCS_DIR, str(company_id or "admin"))
+        os.makedirs(company_dir, exist_ok=True)
+        dest = os.path.join(company_dir, safe_name)
+        with open(dest, "wb") as f_out:
+            shutil.copyfileobj(file.file, f_out)
+        file_name = file.filename
+        file_path = dest
+        file_size = os.path.getsize(dest)
+
+    result = auth_db.add_doc_post(
+        category_id=category_id,
+        title=title,
+        content=content,
+        file_name=file_name,
+        file_path=file_path,
+        file_size=file_size,
+        company_id=company_id,
+        company_name=company_name,
+        author_id=user["user_id"],
+        author_name=user.get("name", ""),
+        period_start=period_start,
+        period_end=period_end,
+    )
+    return result
+
+
+@app.get("/api/documents/{post_id}")
+async def get_doc_post(post_id: int, user=Depends(get_current_user)):
+    post = auth_db.get_doc_post(post_id)
+    if not post:
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    return post
+
+
+@app.delete("/api/documents/{post_id}")
+async def delete_doc_post(post_id: int, user=Depends(get_current_user)):
+    is_admin = user.get("role") == "admin"
+    result = auth_db.delete_doc_post(post_id, user["user_id"], is_admin)
+    if result is False:
+        raise HTTPException(status_code=403, detail="삭제 권한이 없거나 게시물이 존재하지 않습니다.")
+    # Cleanup file
+    if result and isinstance(result, str) and os.path.exists(result):
+        os.remove(result)
+    return {"status": "deleted"}
+
+
+@app.get("/api/documents/{post_id}/download")
+async def download_doc_file(post_id: int, user=Depends(get_current_user)):
+    info = auth_db.get_doc_file_path(post_id)
+    if not info:
+        raise HTTPException(status_code=404, detail="게시물을 찾을 수 없습니다.")
+    if not info["file_path"] or not os.path.exists(info["file_path"]):
+        raise HTTPException(status_code=404, detail="파일이 존재하지 않습니다.")
+    return FileResponse(
+        path=info["file_path"],
+        filename=info["file_name"],
+        media_type="application/octet-stream",
+    )
+
+
+@app.get("/api/documents/admin/status")
+async def get_submission_status(user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    return {"status": auth_db.get_submission_status()}
+
+
+@app.post("/api/documents/admin/request")
+async def create_doc_request(body: dict, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    category_id = body.get("category_id")
+    company_id = body.get("company_id")
+    due_date = body.get("due_date", "")
+    message = body.get("message", "")
+    if not category_id or not company_id:
+        raise HTTPException(status_code=400, detail="카테고리와 회사를 선택하세요.")
+
+    # Look up company name
+    all_companies = auth_db.get_all_companies()
+    comp = next((c for c in all_companies if c["id"] == company_id), None)
+    if not comp:
+        raise HTTPException(status_code=404, detail="회사를 찾을 수 없습니다.")
+
+    req = auth_db.add_doc_request(
+        category_id=category_id,
+        company_id=company_id,
+        company_name=comp["name"],
+        due_date=due_date,
+        message=message,
+        created_by=user["user_id"],
+        created_by_name=user.get("name", ""),
+    )
+    return req
+
+
+@app.post("/api/documents/admin/request/{request_id}/send-email")
+async def send_request_email(
+    request_id: int,
+    body: dict,
+    user=Depends(get_current_user),
+):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+
+    to_email = body.get("to_email", "")
+    subject = body.get("subject", "")
+    email_body = body.get("body", "")
+
+    if not to_email:
+        raise HTTPException(status_code=400, detail="수신자 이메일을 입력하세요.")
+
+    sent = _send_email(to_email, subject, email_body)
+    auth_db.mark_email_sent(request_id)
+
+    return {
+        "status": "sent" if sent else "logged",
+        "message": "이메일이 발송되었습니다." if sent else "요청이 저장되었습니다. (SMTP 미설정 — 실제 발송 없음)",
+    }
 
 
 if __name__ == "__main__":

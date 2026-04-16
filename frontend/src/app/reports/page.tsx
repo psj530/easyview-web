@@ -84,6 +84,12 @@ export default function ReportsPage() {
                 새 리포트
               </Link>
               <Link
+                href="/documents"
+                className="px-3 py-1.5 text-xs font-medium rounded text-[#464646] hover:bg-[#F5F5F5] transition-colors"
+              >
+                자료실
+              </Link>
+              <Link
                 href="/"
                 className="px-3 py-1.5 text-xs font-medium rounded text-[#7D7D7D] hover:bg-[#F5F5F5] transition-colors"
               >

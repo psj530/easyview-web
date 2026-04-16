@@ -115,6 +115,8 @@ class AuthDB:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     code TEXT UNIQUE NOT NULL,
+                    country TEXT DEFAULT '',
+                    erp_system TEXT DEFAULT '',
                     created_at TEXT DEFAULT (datetime('now'))
                 );
 
@@ -152,12 +154,78 @@ class AuthDB:
                     note TEXT,
                     source TEXT NOT NULL DEFAULT 'web',
                     created_at TEXT DEFAULT (datetime('now'))
-                );            """)
+                );
+
+                CREATE TABLE IF NOT EXISTS doc_categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT DEFAULT '',
+                    is_required INTEGER DEFAULT 1,
+                    created_at TEXT DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS doc_posts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category_id INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    content TEXT DEFAULT '',
+                    file_name TEXT DEFAULT '',
+                    file_path TEXT DEFAULT '',
+                    file_size INTEGER DEFAULT 0,
+                    company_id INTEGER,
+                    company_name TEXT DEFAULT '',
+                    author_id INTEGER NOT NULL,
+                    author_name TEXT NOT NULL,
+                    view_count INTEGER DEFAULT 0,
+                    period_start TEXT DEFAULT '',
+                    period_end TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    FOREIGN KEY (category_id) REFERENCES doc_categories(id),
+                    FOREIGN KEY (company_id) REFERENCES companies(id),
+                    FOREIGN KEY (author_id) REFERENCES users(id)
+                );
+
+                CREATE TABLE IF NOT EXISTS doc_requests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category_id INTEGER NOT NULL,
+                    company_id INTEGER NOT NULL,
+                    company_name TEXT NOT NULL,
+                    due_date TEXT NOT NULL,
+                    message TEXT DEFAULT '',
+                    created_by INTEGER NOT NULL,
+                    created_by_name TEXT NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    email_sent_at TEXT DEFAULT NULL,
+                    FOREIGN KEY (category_id) REFERENCES doc_categories(id),
+                    FOREIGN KEY (company_id) REFERENCES companies(id),
+                    FOREIGN KEY (created_by) REFERENCES users(id)
+                );
+            """)
+
+            # Migration: add new columns to existing tables (safe — ignored if already exist)
+            for sql in [
+                "ALTER TABLE companies ADD COLUMN country TEXT DEFAULT ''",
+                "ALTER TABLE companies ADD COLUMN erp_system TEXT DEFAULT ''",
+                "ALTER TABLE doc_categories ADD COLUMN is_required INTEGER DEFAULT 1",
+                "ALTER TABLE doc_posts ADD COLUMN period_start TEXT DEFAULT ''",
+                "ALTER TABLE doc_posts ADD COLUMN period_end TEXT DEFAULT ''",
+            ]:
+                try:
+                    conn.execute(sql)
+                except Exception:
+                    pass
+            conn.commit()
 
             # Seed default admin and sample data if empty
             cursor = conn.execute("SELECT COUNT(*) FROM users")
             if cursor.fetchone()[0] == 0:
                 self._seed_data(conn)
+
+            # Seed doc_categories if empty
+            cursor = conn.execute("SELECT COUNT(*) FROM doc_categories")
+            if cursor.fetchone()[0] == 0:
+                self._seed_doc_categories(conn)
 
             conn.commit()
         finally:
@@ -179,10 +247,10 @@ class AuthDB:
             ("user@samil.com", salt2, pw_hash2, "박수정", "user", "감사본부"),
         )
 
-        # Sample companies
-        conn.execute("INSERT INTO companies (name, code) VALUES (?, ?)", ("ABC Company", "ABC"))
-        conn.execute("INSERT INTO companies (name, code) VALUES (?, ?)", ("XYZ Corporation", "XYZ"))
-        conn.execute("INSERT INTO companies (name, code) VALUES (?, ?)", ("삼일전자", "SE001"))
+        # Sample companies (name, code, country, erp_system)
+        conn.execute("INSERT INTO companies (name, code, country, erp_system) VALUES (?, ?, ?, ?)", ("ABC Company", "ABC", "한국", "SAP"))
+        conn.execute("INSERT INTO companies (name, code, country, erp_system) VALUES (?, ?, ?, ?)", ("XYZ Corporation", "XYZ", "미국", "QuickBooks"))
+        conn.execute("INSERT INTO companies (name, code, country, erp_system) VALUES (?, ?, ?, ?)", ("삼일전자", "SE001", "한국", "더존"))
 
         # Assign companies to users (admin gets all, user gets ABC only)
         conn.execute("INSERT INTO user_companies (user_id, company_id, role) VALUES (1, 1, 'admin')")
@@ -197,6 +265,325 @@ class AuthDB:
         conn.execute(
             "INSERT INTO reports (company_id, company_code, company_name, year, month, created_by, created_by_name, revenue, pl_items, created_at) VALUES (1,'ABC','ABC Company',2025,8,2,'박수정',128500000000,38,'2025-09-12 14:20:00')"
         )
+
+    def _seed_doc_categories(self, conn: sqlite3.Connection):
+        """Seed default document categories matching actual data request structure."""
+        # (name, description, is_required)
+        categories = [
+            ("전표 (JE/GL)", "기초~결산월 누적 전표 (General Ledger / Journal Entry). SAP: BKPF·ACDOCA 등", 1),
+            ("시산표 (Trial Balance)", "기초~결산월 누적 계정별 잔액. SAP: T-Code S_ALR_87012277 또는 F.08", 1),
+            ("재무상태표/손익계산서 (BS/PL)", "회계기간 전체 BS 및 PL 데이터", 1),
+            ("거래처 코드 Mapping", "판매처·구매처 코드-거래처명 매핑 테이블 (KUNNR, LIFNR)", 0),
+            ("Cost Center 배부기준", "원가/보조부서 제조원가 배부기준 (RCNTR)", 0),
+            ("계정과목표 (Chart of Accounts)", "계정과목 레벨 정보 또는 GL mapping table (SKAS, SKAT)", 0),
+            ("세미커넥터 전표", "본사 해외법인 전표 (세미커넥터 방식)", 0),
+            ("기타", "위 항목에 해당하지 않는 기타 자료", 0),
+        ]
+        for name, desc, required in categories:
+            conn.execute(
+                "INSERT INTO doc_categories (name, description, is_required) VALUES (?, ?, ?)",
+                (name, desc, required),
+            )
+
+    # ===== Documents =====
+
+    def get_doc_categories(self) -> List[Dict]:
+        conn = self._get_conn()
+        try:
+            cursor = conn.execute("SELECT id, name, description, is_required, created_at FROM doc_categories ORDER BY is_required DESC, id")
+            return [dict(row) for row in cursor.fetchall()]
+        finally:
+            conn.close()
+
+    def add_doc_category(self, name: str, description: str = "") -> Dict:
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                "INSERT INTO doc_categories (name, description) VALUES (?, ?)",
+                (name, description),
+            )
+            conn.commit()
+            cat_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            return {"id": cat_id, "name": name, "description": description}
+        finally:
+            conn.close()
+
+    def get_doc_posts(
+        self,
+        user_id: int,
+        is_admin: bool,
+        category_id: Optional[int] = None,
+        company_id: Optional[int] = None,
+        period_year: Optional[int] = None,
+        required_only: bool = False,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> Dict:
+        conn = self._get_conn()
+        try:
+            conditions = []
+            params = []
+
+            if not is_admin:
+                # Non-admin: only see posts from their accessible companies
+                conditions.append("""
+                    p.company_id IN (
+                        SELECT company_id FROM user_companies WHERE user_id = ?
+                    )
+                """)
+                params.append(user_id)
+
+            if category_id:
+                conditions.append("p.category_id = ?")
+                params.append(category_id)
+
+            if company_id and is_admin:
+                conditions.append("p.company_id = ?")
+                params.append(company_id)
+
+            if period_year:
+                conditions.append("p.period_start != '' AND strftime('%Y', p.period_start) = ?")
+                params.append(str(period_year))
+
+            if required_only:
+                conditions.append("c.is_required = 1")
+
+            where = "WHERE " + " AND ".join(conditions) if conditions else ""
+
+            total_cursor = conn.execute(
+                f"SELECT COUNT(*) FROM doc_posts p LEFT JOIN doc_categories c ON p.category_id = c.id {where}", params
+            )
+            total = total_cursor.fetchone()[0]
+
+            offset = (page - 1) * per_page
+            cursor = conn.execute(
+                f"""
+                SELECT p.id, p.title, p.file_name, p.file_size, p.company_id, p.company_name,
+                       p.author_id, p.author_name, p.view_count, p.created_at,
+                       p.period_start, p.period_end,
+                       c.name AS category_name, c.is_required, p.category_id
+                FROM doc_posts p
+                LEFT JOIN doc_categories c ON p.category_id = c.id
+                {where}
+                ORDER BY p.id DESC
+                LIMIT ? OFFSET ?
+                """,
+                params + [per_page, offset],
+            )
+            posts = [dict(row) for row in cursor.fetchall()]
+            return {"posts": posts, "total": total, "page": page, "per_page": per_page}
+        finally:
+            conn.close()
+
+    def add_doc_post(
+        self,
+        category_id: int,
+        title: str,
+        content: str,
+        file_name: str,
+        file_path: str,
+        file_size: int,
+        company_id: Optional[int],
+        company_name: str,
+        author_id: int,
+        author_name: str,
+        period_start: str = "",
+        period_end: str = "",
+    ) -> Dict:
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                """
+                INSERT INTO doc_posts (category_id, title, content, file_name, file_path,
+                    file_size, company_id, company_name, author_id, author_name,
+                    period_start, period_end)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (category_id, title, content, file_name, file_path, file_size,
+                 company_id, company_name, author_id, author_name,
+                 period_start, period_end),
+            )
+            conn.commit()
+            post_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            return {"id": post_id}
+        finally:
+            conn.close()
+
+    def get_doc_post(self, post_id: int) -> Optional[Dict]:
+        conn = self._get_conn()
+        try:
+            conn.execute("UPDATE doc_posts SET view_count = view_count + 1 WHERE id = ?", (post_id,))
+            conn.commit()
+            cursor = conn.execute(
+                """
+                SELECT p.*, c.name AS category_name
+                FROM doc_posts p
+                LEFT JOIN doc_categories c ON p.category_id = c.id
+                WHERE p.id = ?
+                """,
+                (post_id,),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def delete_doc_post(self, post_id: int, user_id: int, is_admin: bool) -> bool:
+        conn = self._get_conn()
+        try:
+            cursor = conn.execute("SELECT author_id, file_path FROM doc_posts WHERE id = ?", (post_id,))
+            row = cursor.fetchone()
+            if not row:
+                return False
+            if not is_admin and row["author_id"] != user_id:
+                return False
+            conn.execute("DELETE FROM doc_posts WHERE id = ?", (post_id,))
+            conn.commit()
+            return row["file_path"]  # return file_path for cleanup
+        finally:
+            conn.close()
+
+    def get_doc_post_years(self) -> List[int]:
+        """Return distinct years found in doc_posts period_start."""
+        conn = self._get_conn()
+        try:
+            cursor = conn.execute("""
+                SELECT DISTINCT strftime('%Y', period_start) AS y
+                FROM doc_posts
+                WHERE period_start != '' AND period_start IS NOT NULL
+                ORDER BY y DESC
+            """)
+            return [int(row["y"]) for row in cursor.fetchall() if row["y"]]
+        finally:
+            conn.close()
+
+    def get_doc_file_path(self, post_id: int) -> Optional[str]:
+        conn = self._get_conn()
+        try:
+            cursor = conn.execute(
+                "SELECT file_path, file_name FROM doc_posts WHERE id = ?", (post_id,)
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def get_submission_status(self) -> List[Dict]:
+        """Return per-company, per-category submission status for admin."""
+        conn = self._get_conn()
+        try:
+            # Get all companies
+            companies = [dict(r) for r in conn.execute(
+                "SELECT id, name, code, country, erp_system FROM companies ORDER BY name"
+            ).fetchall()]
+
+            # Get all categories
+            categories = [dict(r) for r in conn.execute(
+                "SELECT id, name, is_required FROM doc_categories ORDER BY is_required DESC, id"
+            ).fetchall()]
+
+            # Get latest post per company per category (include period info)
+            cursor = conn.execute("""
+                SELECT company_id, category_id, MAX(created_at) AS submitted_at,
+                       author_name, file_name, period_start, period_end
+                FROM doc_posts
+                GROUP BY company_id, category_id
+            """)
+            submitted = {}
+            for row in cursor.fetchall():
+                key = (row["company_id"], row["category_id"])
+                submitted[key] = {
+                    "submitted_at": row["submitted_at"],
+                    "author_name": row["author_name"],
+                    "file_name": row["file_name"],
+                    "period_start": row["period_start"],
+                    "period_end": row["period_end"],
+                }
+
+            # Get pending requests
+            cursor2 = conn.execute("""
+                SELECT company_id, category_id, due_date, email_sent_at
+                FROM doc_requests
+                ORDER BY created_at DESC
+            """)
+            requests_map = {}
+            for row in cursor2.fetchall():
+                key = (row["company_id"], row["category_id"])
+                if key not in requests_map:
+                    requests_map[key] = {
+                        "due_date": row["due_date"],
+                        "email_sent_at": row["email_sent_at"],
+                    }
+
+            result = []
+            for company in companies:
+                row = {
+                    "company_id": company["id"],
+                    "company_name": company["name"],
+                    "company_code": company["code"],
+                    "country": company.get("country", ""),
+                    "erp_system": company.get("erp_system", ""),
+                    "categories": [],
+                }
+                for cat in categories:
+                    key = (company["id"], cat["id"])
+                    sub = submitted.get(key)
+                    req = requests_map.get(key)
+                    row["categories"].append({
+                        "category_id": cat["id"],
+                        "category_name": cat["name"],
+                        "is_required": bool(cat.get("is_required", 1)),
+                        "submitted": sub is not None,
+                        "submitted_at": sub["submitted_at"] if sub else None,
+                        "author_name": sub["author_name"] if sub else None,
+                        "file_name": sub["file_name"] if sub else None,
+                        "period_start": sub["period_start"] if sub else None,
+                        "period_end": sub["period_end"] if sub else None,
+                        "due_date": req["due_date"] if req else None,
+                        "email_sent_at": req["email_sent_at"] if req else None,
+                    })
+                result.append(row)
+            return result
+        finally:
+            conn.close()
+
+    def add_doc_request(
+        self,
+        category_id: int,
+        company_id: int,
+        company_name: str,
+        due_date: str,
+        message: str,
+        created_by: int,
+        created_by_name: str,
+    ) -> Dict:
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                """
+                INSERT INTO doc_requests (category_id, company_id, company_name,
+                    due_date, message, created_by, created_by_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (category_id, company_id, company_name, due_date, message,
+                 created_by, created_by_name),
+            )
+            conn.commit()
+            req_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            return {"id": req_id}
+        finally:
+            conn.close()
+
+    def mark_email_sent(self, request_id: int):
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                "UPDATE doc_requests SET email_sent_at = datetime('now') WHERE id = ?",
+                (request_id,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
     def login(self, email: str, password: str) -> Optional[Dict]:
         """Authenticate user and return JWT token."""
