@@ -389,10 +389,10 @@ export default function HomePage() {
       </section>
 
       {/* ===== 서비스 안내 ===== */}
-      <section id="services" className="snap-start min-h-[100dvh] py-24 md:py-40 bg-gradient-to-b from-white to-[#F5F7F8]">
+      <section id="services" className="snap-start min-h-[100dvh] py-12 md:py-16 bg-gradient-to-b from-white to-[#F5F7F8]">
         <div className="max-w-6xl mx-auto px-6">
           {/* Section Header */}
-          <div className="text-center mb-20">
+          <div className="text-center mb-10">
             <div className="inline-block">
               <div className="text-[12px] font-semibold text-[#FD5108] tracking-widest uppercase mb-3 block">핵심 기능</div>
               <h2 className="text-3xl md:text-4xl font-bold text-[#222C40] mb-4 leading-tight">
@@ -616,9 +616,9 @@ export default function HomePage() {
       </section>
 
       {/* ===== 매뉴얼 & 가이드 ===== */}
-      <section id="manual" className="snap-start min-h-[100dvh] bg-white py-24 md:py-40">
+      <section id="manual" className="snap-start min-h-[100dvh] bg-white py-12 md:py-16">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-20">
+          <div className="text-center mb-10">
             <div className="inline-block">
               <div className="text-[12px] font-semibold text-[#FD5108] tracking-widest uppercase mb-3 block">참고 자료</div>
               <h2 className="text-3xl md:text-4xl font-bold text-[#222C40] mb-4 leading-tight">
@@ -756,11 +756,11 @@ export default function HomePage() {
       </section>
 
       {/* ===== Digital & AI ===== */}
-      <section id="digital" className="snap-start min-h-[100dvh] bg-[#F5F7F8] py-24 md:py-40">
+      <section id="digital" className="snap-start min-h-[100dvh] bg-[#F5F7F8] py-12 md:py-16">
         <div className="max-w-6xl mx-auto px-6 w-full">
 
           {/* 섹션 헤더 */}
-          <div className="text-center mb-20">
+          <div className="text-center mb-10">
             <div className="inline-block">
               <div className="text-[12px] font-semibold text-[#FD5108] tracking-widest uppercase mb-3 block">Digital &amp; AI</div>
               <h2 className="text-3xl md:text-4xl font-bold text-[#222C40] mb-4 leading-tight">
@@ -884,9 +884,9 @@ export default function HomePage() {
       </section>
 
       {/* ===== Managed Service ===== */}
-      <section id="managed" className="snap-start min-h-[100dvh] py-24 md:py-40 bg-white">
+      <section id="managed" className="snap-start min-h-[100dvh] py-12 md:py-16 bg-white">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-20">
+          <div className="text-center mb-10">
             <div className="inline-block">
               <div className="text-[12px] font-semibold text-[#FD5108] tracking-widest uppercase mb-3 block">신뢰성</div>
               <h2 className="text-3xl md:text-4xl font-bold text-[#222C40] mb-4 leading-tight">
@@ -960,7 +960,7 @@ export default function HomePage() {
 
       {/* ===== Contact Us ===== */}
       <div className="snap-start flex flex-col" style={{ minHeight: "100dvh" }}>
-      <section id="contact" className="bg-gradient-to-b from-[#F5F7F8] to-white py-24 md:py-40 flex-1">
+      <section id="contact" className="bg-gradient-to-b from-[#F5F7F8] to-white py-12 md:py-16 flex-1">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
             {/* Left */}
