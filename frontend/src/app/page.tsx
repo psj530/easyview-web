@@ -60,7 +60,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="h-screen overflow-y-scroll snap-y snap-mandatory scroll-pt-16 bg-white">
+    <div className="overflow-y-scroll snap-y snap-mandatory scroll-pt-16 bg-white" style={{ height: "100dvh" }}>
       {/* ===== Header ===== */}
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -106,7 +106,7 @@ export default function HomePage() {
       <div className="h-16 shrink-0" />
 
       {/* ===== Hero ===== */}
-      <section className="snap-start min-h-screen relative overflow-hidden bg-[#F5F7F8] flex items-center">
+      <section className="snap-start min-h-[100dvh] relative overflow-hidden bg-[#F5F7F8] flex items-center">
         {/* Background blobs */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-[-10%] right-[-8%] w-[700px] h-[700px] bg-[#FD5108]/5 rounded-full blur-[100px]" />
@@ -389,7 +389,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== 서비스 안내 ===== */}
-      <section id="services" className="snap-start min-h-screen py-24 md:py-40 bg-gradient-to-b from-white to-[#F5F7F8]">
+      <section id="services" className="snap-start min-h-[100dvh] py-24 md:py-40 bg-gradient-to-b from-white to-[#F5F7F8]">
         <div className="max-w-6xl mx-auto px-6">
           {/* Section Header */}
           <div className="text-center mb-20">
@@ -616,7 +616,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== 매뉴얼 & 가이드 ===== */}
-      <section id="manual" className="snap-start min-h-screen bg-white py-24 md:py-40">
+      <section id="manual" className="snap-start min-h-[100dvh] bg-white py-24 md:py-40">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-20">
             <div className="inline-block">
@@ -756,7 +756,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== Digital & AI ===== */}
-      <section id="digital" className="snap-start min-h-screen bg-[#F5F7F8] py-24 md:py-40">
+      <section id="digital" className="snap-start min-h-[100dvh] bg-[#F5F7F8] py-24 md:py-40">
         <div className="max-w-6xl mx-auto px-6 w-full">
 
           {/* 섹션 헤더 */}
@@ -884,7 +884,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== Managed Service ===== */}
-      <section id="managed" className="snap-start min-h-screen py-24 md:py-40 bg-white">
+      <section id="managed" className="snap-start min-h-[100dvh] py-24 md:py-40 bg-white">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-20">
             <div className="inline-block">
@@ -959,7 +959,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== Contact Us ===== */}
-      <div className="snap-start min-h-screen flex flex-col">
+      <div className="snap-start flex flex-col" style={{ minHeight: "100dvh" }}>
       <section id="contact" className="bg-gradient-to-b from-[#F5F7F8] to-white py-24 md:py-40 flex-1">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
