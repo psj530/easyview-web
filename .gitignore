@@ -16,6 +16,9 @@ backend/*.pyc
 .DS_Store
 Thumbs.db
 
+# Uploaded / generated files
+backend/documents/
+
 # Build
 frontend/out/
 *.log

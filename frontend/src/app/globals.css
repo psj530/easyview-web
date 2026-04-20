@@ -85,6 +85,52 @@ body {
   0%, 100% { opacity: 1;   }
   50%       { opacity: 0.4; }
 }
+/* Custom checkbox — orange bg, white checkmark (자료실 only) */
+.documents-page input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1.5px solid #CCCCCC;
+  border-radius: 3px;
+  background-color: #fff;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+
+.documents-page input[type="checkbox"]:checked {
+  background-color: #F68600;
+  border-color: #F68600;
+}
+
+.documents-page input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 28%;
+  top: 8%;
+  width: 32%;
+  height: 58%;
+  border: 2px solid #fff;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg);
+}
+
+.documents-page input[type="checkbox"]:indeterminate {
+  background-color: #F68600;
+  border-color: #F68600;
+}
+
+.documents-page input[type="checkbox"]:indeterminate::after {
+  content: '';
+  position: absolute;
+  left: 18%;
+  top: 42%;
+  width: 62%;
+  height: 2px;
+  background-color: #fff;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

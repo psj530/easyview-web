@@ -201,6 +201,34 @@ class AuthDB:
                     FOREIGN KEY (company_id) REFERENCES companies(id),
                     FOREIGN KEY (created_by) REFERENCES users(id)
                 );
+
+                CREATE TABLE IF NOT EXISTS doc_periods (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    period TEXT NOT NULL UNIQUE,
+                    label TEXT NOT NULL,
+                    due_date TEXT DEFAULT '',
+                    created_by INTEGER NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    FOREIGN KEY (created_by) REFERENCES users(id)
+                );
+
+                CREATE TABLE IF NOT EXISTS doc_comments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    request_id INTEGER NOT NULL,
+                    author_id INTEGER NOT NULL,
+                    author_name TEXT NOT NULL,
+                    author_role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    FOREIGN KEY (request_id) REFERENCES doc_requests(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS doc_comment_reads (
+                    user_id INTEGER NOT NULL,
+                    request_id INTEGER NOT NULL,
+                    last_read_at TEXT NOT NULL,
+                    PRIMARY KEY (user_id, request_id)
+                );
             """)
 
             # Migration: add new columns to existing tables (safe — ignored if already exist)
@@ -210,6 +238,12 @@ class AuthDB:
                 "ALTER TABLE doc_categories ADD COLUMN is_required INTEGER DEFAULT 1",
                 "ALTER TABLE doc_posts ADD COLUMN period_start TEXT DEFAULT ''",
                 "ALTER TABLE doc_posts ADD COLUMN period_end TEXT DEFAULT ''",
+                "ALTER TABLE doc_requests ADD COLUMN requestee_email TEXT DEFAULT ''",
+                "ALTER TABLE doc_requests ADD COLUMN requestee_name TEXT DEFAULT ''",
+                "ALTER TABLE doc_posts ADD COLUMN rejected INTEGER DEFAULT 0",
+                "ALTER TABLE doc_requests ADD COLUMN period_id INTEGER DEFAULT NULL",
+                "ALTER TABLE doc_comments ADD COLUMN updated_at TEXT DEFAULT NULL",
+                "ALTER TABLE doc_posts ADD COLUMN request_id INTEGER DEFAULT NULL",
             ]:
                 try:
                     conn.execute(sql)
@@ -217,10 +251,58 @@ class AuthDB:
                     pass
             conn.commit()
 
+            # Data migration: assign period_id to existing requests by matching due_date month to period
+            conn.execute("""
+                UPDATE doc_requests
+                SET period_id = (
+                    SELECT id FROM doc_periods
+                    WHERE period = substr(doc_requests.due_date, 1, 7)
+                    LIMIT 1
+                )
+                WHERE period_id IS NULL AND due_date != ''
+            """)
+            conn.commit()
+
+            # Data migration: back-fill request_id on existing posts
+            # Try period_id match first, fall back to due_date month match for requests with period_id=NULL
+            conn.execute("""
+                UPDATE doc_posts
+                SET request_id = COALESCE(
+                    (SELECT dr.id FROM doc_requests dr
+                     JOIN doc_periods dp ON dr.period_id = dp.id
+                     WHERE dr.company_id = doc_posts.company_id
+                       AND dr.category_id = doc_posts.category_id
+                       AND dp.period = strftime('%Y-%m', doc_posts.period_start)
+                     ORDER BY dr.id DESC LIMIT 1),
+                    (SELECT dr.id FROM doc_requests dr
+                     WHERE dr.company_id = doc_posts.company_id
+                       AND dr.category_id = doc_posts.category_id
+                       AND substr(dr.due_date, 1, 7) = strftime('%Y-%m', doc_posts.period_start)
+                     ORDER BY dr.id DESC LIMIT 1)
+                )
+                WHERE request_id IS NULL
+            """)
+            conn.commit()
+
             # Seed default admin and sample data if empty
             cursor = conn.execute("SELECT COUNT(*) FROM users")
             if cursor.fetchone()[0] == 0:
                 self._seed_data(conn)
+
+            # Remove deprecated categories and add 정산표 if needed
+            deprecated = conn.execute(
+                "SELECT id FROM doc_categories WHERE name IN ('세미커넥터 전표', '기타')"
+            ).fetchall()
+            if deprecated:
+                dep_ids = [r["id"] for r in deprecated]
+                placeholders = ",".join("?" * len(dep_ids))
+                conn.execute(f"DELETE FROM doc_requests WHERE category_id IN ({placeholders})", dep_ids)
+                conn.execute(f"DELETE FROM doc_posts WHERE category_id IN ({placeholders})", dep_ids)
+                conn.execute(f"DELETE FROM doc_categories WHERE id IN ({placeholders})", dep_ids)
+            if not conn.execute("SELECT 1 FROM doc_categories WHERE name = '정산표'").fetchone():
+                conn.execute(
+                    "INSERT INTO doc_categories (name, description, is_required) VALUES ('정산표', '본사/해외법인 정산표 (패키지파일)', 0)"
+                )
 
             # Seed doc_categories if empty
             cursor = conn.execute("SELECT COUNT(*) FROM doc_categories")
@@ -276,8 +358,7 @@ class AuthDB:
             ("거래처 코드 Mapping", "판매처·구매처 코드-거래처명 매핑 테이블 (KUNNR, LIFNR)", 0),
             ("Cost Center 배부기준", "원가/보조부서 제조원가 배부기준 (RCNTR)", 0),
             ("계정과목표 (Chart of Accounts)", "계정과목 레벨 정보 또는 GL mapping table (SKAS, SKAT)", 0),
-            ("세미커넥터 전표", "본사 해외법인 전표 (세미커넥터 방식)", 0),
-            ("기타", "위 항목에 해당하지 않는 기타 자료", 0),
+            ("정산표", "본사/해외법인 정산표 (패키지파일)", 0),
         ]
         for name, desc, required in categories:
             conn.execute(
@@ -295,16 +376,16 @@ class AuthDB:
         finally:
             conn.close()
 
-    def add_doc_category(self, name: str, description: str = "") -> Dict:
+    def add_doc_category(self, name: str, description: str = "", is_required: int = 1) -> Dict:
         conn = self._get_conn()
         try:
             conn.execute(
-                "INSERT INTO doc_categories (name, description) VALUES (?, ?)",
-                (name, description),
+                "INSERT INTO doc_categories (name, description, is_required) VALUES (?, ?, ?)",
+                (name, description, is_required),
             )
             conn.commit()
             cat_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-            return {"id": cat_id, "name": name, "description": description}
+            return {"id": cat_id, "name": name, "description": description, "is_required": is_required}
         finally:
             conn.close()
 
@@ -392,16 +473,30 @@ class AuthDB:
     ) -> Dict:
         conn = self._get_conn()
         try:
+            # Auto-link to matching request (same company + category + period month)
+            linked_request_id = None
+            if company_id and period_start:
+                period_month = period_start[:7]  # "YYYY-MM"
+                row = conn.execute("""
+                    SELECT dr.id FROM doc_requests dr
+                    LEFT JOIN doc_periods dp ON dr.period_id = dp.id
+                    WHERE dr.company_id = ? AND dr.category_id = ?
+                      AND (dp.period = ? OR (dr.period_id IS NULL AND substr(dr.due_date, 1, 7) = ?))
+                    ORDER BY dr.id DESC LIMIT 1
+                """, (company_id, category_id, period_month, period_month)).fetchone()
+                if row:
+                    linked_request_id = row[0]
+
             conn.execute(
                 """
                 INSERT INTO doc_posts (category_id, title, content, file_name, file_path,
                     file_size, company_id, company_name, author_id, author_name,
-                    period_start, period_end)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    period_start, period_end, request_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (category_id, title, content, file_name, file_path, file_size,
                  company_id, company_name, author_id, author_name,
-                 period_start, period_end),
+                 period_start, period_end, linked_request_id),
             )
             conn.commit()
             post_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -547,6 +642,307 @@ class AuthDB:
         finally:
             conn.close()
 
+    def create_period(self, period: str, label: str, due_date: str, created_by: int) -> int:
+        """Create an admin-defined submission period. Returns new id."""
+        conn = self._get_conn()
+        try:
+            cur = conn.execute(
+                "INSERT INTO doc_periods (period, label, due_date, created_by) VALUES (?, ?, ?, ?)",
+                (period, label, due_date, created_by),
+            )
+            conn.commit()
+            return cur.lastrowid
+        finally:
+            conn.close()
+
+    def get_periods(self) -> List[Dict]:
+        """Return all admin-created periods ordered newest first."""
+        conn = self._get_conn()
+        try:
+            return [dict(r) for r in conn.execute(
+                "SELECT id, period, label, due_date, created_at FROM doc_periods ORDER BY period DESC"
+            ).fetchall()]
+        finally:
+            conn.close()
+
+    def delete_period(self, period_id: int) -> None:
+        conn = self._get_conn()
+        try:
+            conn.execute("DELETE FROM doc_periods WHERE id = ?", (period_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def reject_file(self, post_id: int) -> None:
+        """Mark a submitted file as rejected (status becomes 반려됨)."""
+        conn = self._get_conn()
+        try:
+            conn.execute("UPDATE doc_posts SET rejected = 1 WHERE id = ?", (post_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def update_period(self, period_id: int, due_date: str) -> None:
+        """Update the due_date of an existing period."""
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                "UPDATE doc_periods SET due_date = ? WHERE id = ?",
+                (due_date, period_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_files_for_period(self, company_id: int, period: str) -> List[Dict]:
+        """Return file info for all submitted files in a company+period (for zip download)."""
+        conn = self._get_conn()
+        try:
+            return [dict(r) for r in conn.execute("""
+                SELECT p.id, p.file_path, p.file_name, p.title,
+                       c.name AS category_name
+                FROM doc_posts p
+                JOIN doc_categories c ON p.category_id = c.id
+                WHERE p.company_id = ? AND strftime('%Y-%m', p.period_start) = ?
+                  AND p.file_path != '' AND p.file_path IS NOT NULL
+                ORDER BY c.id
+            """, (company_id, period)).fetchall()]
+        finally:
+            conn.close()
+
+    def bulk_create_requests(
+        self, company_id: int, period: str, created_by: int, created_by_name: str
+    ) -> List[int]:
+        """Create doc_request entries for all missing required categories in a period."""
+        conn = self._get_conn()
+        try:
+            comp = conn.execute(
+                "SELECT name FROM companies WHERE id = ?", (company_id,)
+            ).fetchone()
+            company_name = comp["name"] if comp else ""
+
+            period_row = conn.execute(
+                "SELECT id, due_date FROM doc_periods WHERE period = ?", (period,)
+            ).fetchone()
+            due_date = period_row["due_date"] if period_row else ""
+            period_db_id = period_row["id"] if period_row else None
+
+            required_cats = [dict(r) for r in conn.execute(
+                "SELECT id, name FROM doc_categories WHERE is_required = 1"
+            ).fetchall()]
+
+            submitted_cat_ids = {
+                row["category_id"] for row in conn.execute("""
+                    SELECT category_id FROM doc_posts
+                    WHERE company_id = ? AND strftime('%Y-%m', period_start) = ?
+                """, (company_id, period)).fetchall()
+            }
+
+            new_ids = []
+            for cat in required_cats:
+                if cat["id"] not in submitted_cat_ids:
+                    cur = conn.execute(
+                        """INSERT INTO doc_requests
+                           (category_id, company_id, company_name, due_date, message,
+                            created_by, created_by_name, period_id)
+                           VALUES (?, ?, ?, ?, '', ?, ?, ?)""",
+                        (cat["id"], company_id, company_name, due_date,
+                         created_by, created_by_name, period_db_id),
+                    )
+                    new_ids.append(cur.lastrowid)
+            conn.commit()
+            return new_ids
+        finally:
+            conn.close()
+
+    def get_monthly_status(self, user_id: int = None) -> List[Dict]:
+        """Return per-company, per-period drill-down status using admin-created periods."""
+        conn = self._get_conn()
+        try:
+            companies = [dict(r) for r in conn.execute(
+                "SELECT id, name, code, country, erp_system FROM companies ORDER BY name"
+            ).fetchall()]
+
+            # All categories (required + optional) for name lookup
+            categories_map = {r["id"]: dict(r) for r in conn.execute(
+                "SELECT id, name, is_required FROM doc_categories"
+            ).fetchall()}
+
+            # Comment counts and latest comment time per request
+            comment_counts = {r["request_id"]: r["cnt"] for r in conn.execute(
+                "SELECT request_id, COUNT(*) as cnt FROM doc_comments GROUP BY request_id"
+            ).fetchall()}
+            latest_comments = {r["request_id"]: r["latest"] for r in conn.execute(
+                "SELECT request_id, MAX(COALESCE(updated_at, created_at)) as latest FROM doc_comments GROUP BY request_id"
+            ).fetchall()}
+
+            # Last read times for current user (to compute unread)
+            read_times = {}
+            if user_id:
+                read_times = {r["request_id"]: r["last_read_at"] for r in conn.execute(
+                    "SELECT request_id, last_read_at FROM doc_comment_reads WHERE user_id = ?", (user_id,)
+                ).fetchall()}
+
+            # Admin-created periods (newest first)
+            periods = [dict(r) for r in conn.execute(
+                "SELECT id, period, label, due_date FROM doc_periods ORDER BY period DESC"
+            ).fetchall()]
+
+            # Aggregate requests per period+company+category
+            requests_map = {}
+            for row in conn.execute("""
+                SELECT MAX(id) AS id, period_id, company_id, category_id,
+                       COUNT(CASE WHEN email_sent_at IS NOT NULL THEN 1 END) AS sent_count,
+                       MAX(due_date) AS due_date,
+                       MAX(email_sent_at) AS email_sent_at,
+                       MAX(created_by_name) AS request_owner,
+                       MAX(requestee_email) AS requestee_email,
+                       MAX(requestee_name) AS requestee_name,
+                       MAX(message) AS message
+                FROM doc_requests
+                GROUP BY period_id, company_id, category_id
+            """).fetchall():
+                key = (row["period_id"], row["company_id"], row["category_id"])
+                cnt = row["sent_count"] or 0
+                requests_map[key] = {
+                    "id": row["id"],
+                    "due_date": row["due_date"],
+                    "email_sent_at": row["email_sent_at"],
+                    "request_owner": row["request_owner"],
+                    "requestee_email": row["requestee_email"],
+                    "requestee_name": row["requestee_name"] or "",
+                    "message": row["message"] or "",
+                    "status": "재요청" if cnt >= 2 else "요청됨" if cnt == 1 else "등록됨",
+                }
+
+            result = []
+            for company in companies:
+                cid = company["id"]
+                months = []
+
+                for p in periods:
+                    period = p["period"]  # "2026-05"
+                    period_due = p.get("due_date") or ""
+                    pid = p["id"]
+
+                    files = [dict(r) for r in conn.execute("""
+                        SELECT p.id, p.title, p.file_name, p.file_size,
+                               p.author_name, p.created_at, p.period_start, p.period_end,
+                               p.request_id,
+                               c.id AS category_id, c.name AS category_name, c.is_required
+                        FROM doc_posts p
+                        JOIN doc_categories c ON p.category_id = c.id
+                        WHERE p.company_id = ? AND strftime('%Y-%m', p.period_start) = ?
+                          AND (p.rejected = 0 OR p.rejected IS NULL)
+                        ORDER BY c.id
+                    """, (cid, period)).fetchall()]
+
+                    # Annotate files with comment counts — use stored request_id first,
+                    # fall back to period+company+category lookup for older posts
+                    for f in files:
+                        rid = f.get("request_id")
+                        if not rid:
+                            req = (requests_map.get((pid, cid, f["category_id"]))
+                                   or requests_map.get((None, cid, f["category_id"]), {}))
+                            rid = req.get("id") if req else None
+                            f["request_id"] = rid
+                        cnt = comment_counts.get(rid, 0) if rid else 0
+                        latest = latest_comments.get(rid) if rid else None
+                        last_read = read_times.get(rid) if rid else None
+                        f["comment_count"] = cnt
+                        f["has_unread"] = cnt > 0 and (not last_read or (latest and latest > last_read))
+
+                    rejected_cat_ids = {
+                        row["category_id"] for row in conn.execute("""
+                            SELECT category_id FROM doc_posts
+                            WHERE company_id = ? AND strftime('%Y-%m', period_start) = ?
+                              AND rejected = 1
+                        """, (cid, period)).fetchall()
+                    }
+
+                    submitted_cat_ids = {f["category_id"] for f in files}
+
+                    # Build missing list from explicit requests only (+ rejected without request)
+                    missing = []
+                    seen_cat_ids = set()
+
+                    # Collect requests for this company+period, sorted by category_id
+                    period_reqs = sorted(
+                        [(key[2], val) for key, val in requests_map.items()
+                         if key[0] == pid and key[1] == cid],
+                        key=lambda x: x[0]
+                    )
+                    for cat_id, req in period_reqs:
+                        if cat_id in submitted_cat_ids:
+                            continue
+                        cat_info = categories_map.get(cat_id, {})
+                        status = "재요청" if cat_id in rejected_cat_ids else req.get("status", "등록됨")
+                        rid = req.get("id")
+                        cnt = comment_counts.get(rid, 0)
+                        latest = latest_comments.get(rid)
+                        last_read = read_times.get(rid)
+                        has_unread = cnt > 0 and (not last_read or (latest and latest > last_read))
+                        missing.append({
+                            "category_id": cat_id,
+                            "category_name": cat_info.get("name", ""),
+                            "is_required": cat_info.get("is_required", 0),
+                            "request_id": rid,
+                            "due_date": req.get("due_date") or period_due,
+                            "email_sent_at": req.get("email_sent_at"),
+                            "request_owner": req.get("request_owner"),
+                            "requestee_email": req.get("requestee_email"),
+                            "requestee_name": req.get("requestee_name", ""),
+                            "message": req.get("message", ""),
+                            "status": status,
+                            "comment_count": cnt,
+                            "has_unread": has_unread,
+                        })
+                        seen_cat_ids.add(cat_id)
+
+                    # Also surface rejected items that have no explicit request
+                    for cat_id in sorted(rejected_cat_ids):
+                        if cat_id in submitted_cat_ids or cat_id in seen_cat_ids:
+                            continue
+                        cat_info = categories_map.get(cat_id, {})
+                        missing.append({
+                            "category_id": cat_id,
+                            "category_name": cat_info.get("name", ""),
+                            "is_required": cat_info.get("is_required", 0),
+                            "request_id": None,
+                            "due_date": period_due,
+                            "email_sent_at": None,
+                            "request_owner": None,
+                            "requestee_email": None,
+                            "requestee_name": "",
+                            "message": "",
+                            "status": "재요청",
+                        })
+
+                    # Skip this period entirely if there's nothing to show
+                    if not files and not missing:
+                        continue
+
+                    months.append({
+                        "period_id": pid,
+                        "period": period,
+                        "label": p["label"],
+                        "due_date": period_due,
+                        "files": files,
+                        "missing": missing,
+                    })
+
+                result.append({
+                    "company_id": cid,
+                    "company_name": company["name"],
+                    "company_code": company["code"],
+                    "country": company.get("country") or "",
+                    "erp_system": company.get("erp_system") or "",
+                    "months": months,
+                })
+            return result
+        finally:
+            conn.close()
+
     def add_doc_request(
         self,
         category_id: int,
@@ -556,17 +952,18 @@ class AuthDB:
         message: str,
         created_by: int,
         created_by_name: str,
+        period_id: int = None,
     ) -> Dict:
         conn = self._get_conn()
         try:
             conn.execute(
                 """
                 INSERT INTO doc_requests (category_id, company_id, company_name,
-                    due_date, message, created_by, created_by_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    due_date, message, created_by, created_by_name, period_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (category_id, company_id, company_name, due_date, message,
-                 created_by, created_by_name),
+                 created_by, created_by_name, period_id),
             )
             conn.commit()
             req_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -574,14 +971,122 @@ class AuthDB:
         finally:
             conn.close()
 
-    def mark_email_sent(self, request_id: int):
+    def bulk_update_due_date(self, company_id: int, period_id: int, due_date: str) -> None:
+        """Update due_date for all requests of a specific company+period."""
         conn = self._get_conn()
         try:
             conn.execute(
-                "UPDATE doc_requests SET email_sent_at = datetime('now') WHERE id = ?",
-                (request_id,),
+                "UPDATE doc_requests SET due_date = ? WHERE company_id = ? AND period_id = ?",
+                (due_date, company_id, period_id),
             )
             conn.commit()
+        finally:
+            conn.close()
+
+    def delete_company_period_requests(self, company_id: int, period_id: int) -> None:
+        """Delete all requests for a specific company+period (leaves doc_periods intact)."""
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                "DELETE FROM doc_requests WHERE company_id = ? AND period_id = ?",
+                (company_id, period_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def mark_email_sent(self, request_id: int, requestee_email: str = "", requestee_name: str = ""):
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                "UPDATE doc_requests SET email_sent_at = datetime('now'), requestee_email = ?, requestee_name = ? WHERE id = ?",
+                (requestee_email, requestee_name, request_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    # ===== Comments =====
+
+    def get_files_for_request(self, request_id: int) -> List[Dict]:
+        conn = self._get_conn()
+        try:
+            return [dict(r) for r in conn.execute(
+                """SELECT id, title, file_name, file_size, author_name, created_at
+                   FROM doc_posts
+                   WHERE request_id = ? AND (rejected = 0 OR rejected IS NULL)
+                   ORDER BY created_at ASC""",
+                (request_id,)
+            ).fetchall()]
+        finally:
+            conn.close()
+
+    def get_comments(self, request_id: int) -> List[Dict]:
+        conn = self._get_conn()
+        try:
+            return [dict(r) for r in conn.execute(
+                "SELECT id, request_id, author_id, author_name, author_role, content, created_at, updated_at "
+                "FROM doc_comments WHERE request_id = ? ORDER BY created_at ASC",
+                (request_id,)
+            ).fetchall()]
+        finally:
+            conn.close()
+
+    def add_comment(self, request_id: int, author_id: int, author_name: str, author_role: str, content: str) -> Dict:
+        conn = self._get_conn()
+        try:
+            cur = conn.execute(
+                "INSERT INTO doc_comments (request_id, author_id, author_name, author_role, content) VALUES (?, ?, ?, ?, ?)",
+                (request_id, author_id, author_name, author_role, content),
+            )
+            conn.commit()
+            row = conn.execute("SELECT * FROM doc_comments WHERE id = ?", (cur.lastrowid,)).fetchone()
+            return dict(row)
+        finally:
+            conn.close()
+
+    def mark_comments_read(self, user_id: int, request_id: int) -> None:
+        conn = self._get_conn()
+        try:
+            conn.execute(
+                """INSERT INTO doc_comment_reads (user_id, request_id, last_read_at)
+                   VALUES (?, ?, datetime('now'))
+                   ON CONFLICT(user_id, request_id) DO UPDATE SET last_read_at = datetime('now')""",
+                (user_id, request_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def edit_comment(self, comment_id: int, user_id: int, content: str) -> Optional[Dict]:
+        conn = self._get_conn()
+        try:
+            row = conn.execute("SELECT * FROM doc_comments WHERE id = ?", (comment_id,)).fetchone()
+            if not row or row["author_id"] != user_id:
+                return None
+            conn.execute(
+                "UPDATE doc_comments SET content = ?, updated_at = datetime('now') WHERE id = ?",
+                (content, comment_id),
+            )
+            conn.commit()
+            return dict(conn.execute(
+                "SELECT id, request_id, author_id, author_name, author_role, content, created_at, updated_at "
+                "FROM doc_comments WHERE id = ?", (comment_id,)
+            ).fetchone())
+        finally:
+            conn.close()
+
+    def delete_comment(self, comment_id: int, user_id: int, is_admin: bool = False) -> bool:
+        conn = self._get_conn()
+        try:
+            row = conn.execute("SELECT * FROM doc_comments WHERE id = ?", (comment_id,)).fetchone()
+            if not row:
+                return False
+            if not is_admin and row["author_id"] != user_id:
+                return False
+            conn.execute("DELETE FROM doc_comments WHERE id = ?", (comment_id,))
+            conn.commit()
+            return True
         finally:
             conn.close()
 

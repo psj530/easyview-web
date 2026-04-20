@@ -6,9 +6,11 @@ Serves financial data from SQLite database as REST API endpoints.
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Depends, Header, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from typing import Optional, List
 import os
+import io
+import zipfile
 import shutil
 import uuid
 import smtplib
@@ -588,7 +590,7 @@ async def add_doc_category(body: dict, user=Depends(get_current_user)):
     if not name:
         raise HTTPException(status_code=400, detail="카테고리명을 입력하세요.")
     try:
-        cat = auth_db.add_doc_category(name, body.get("description", ""))
+        cat = auth_db.add_doc_category(name, body.get("description", ""), int(body.get("is_required", 1)))
         return cat
     except Exception:
         raise HTTPException(status_code=400, detail="이미 존재하는 카테고리명입니다.")
@@ -727,6 +729,46 @@ async def get_submission_status(user=Depends(get_current_user)):
     return {"status": auth_db.get_submission_status()}
 
 
+@app.get("/api/documents/admin/monthly-status")
+async def get_monthly_status(user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    return {"companies": auth_db.get_monthly_status(user_id=user["user_id"])}
+
+
+@app.get("/api/documents/admin/periods")
+async def get_periods(user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    return {"periods": auth_db.get_periods()}
+
+
+@app.post("/api/documents/admin/periods")
+async def create_period(body: dict, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    period = body.get("period", "").strip()   # "2026-05"
+    label = body.get("label", "").strip()     # "2026년 5월"
+    due_date = body.get("due_date", "").strip()
+    if not period or not label:
+        raise HTTPException(status_code=400, detail="period와 label은 필수입니다.")
+    try:
+        new_id = auth_db.create_period(period, label, due_date, user["user_id"])
+        return {"id": new_id, "period": period, "label": label}
+    except Exception as e:
+        if "UNIQUE" in str(e):
+            raise HTTPException(status_code=409, detail="이미 존재하는 기간입니다.")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/documents/admin/periods/{period_id}")
+async def delete_period(period_id: int, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    auth_db.delete_period(period_id)
+    return {"status": "deleted"}
+
+
 @app.post("/api/documents/admin/request")
 async def create_doc_request(body: dict, user=Depends(get_current_user)):
     if user.get("role") != "admin":
@@ -735,6 +777,7 @@ async def create_doc_request(body: dict, user=Depends(get_current_user)):
     company_id = body.get("company_id")
     due_date = body.get("due_date", "")
     message = body.get("message", "")
+    period_id = body.get("period_id")
     if not category_id or not company_id:
         raise HTTPException(status_code=400, detail="카테고리와 회사를 선택하세요.")
 
@@ -752,6 +795,7 @@ async def create_doc_request(body: dict, user=Depends(get_current_user)):
         message=message,
         created_by=user["user_id"],
         created_by_name=user.get("name", ""),
+        period_id=period_id,
     )
     return req
 
@@ -766,6 +810,7 @@ async def send_request_email(
         raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
 
     to_email = body.get("to_email", "")
+    to_name = body.get("to_name", "")
     subject = body.get("subject", "")
     email_body = body.get("body", "")
 
@@ -773,12 +818,181 @@ async def send_request_email(
         raise HTTPException(status_code=400, detail="수신자 이메일을 입력하세요.")
 
     sent = _send_email(to_email, subject, email_body)
-    auth_db.mark_email_sent(request_id)
+    auth_db.mark_email_sent(request_id, requestee_email=to_email, requestee_name=to_name)
 
     return {
         "status": "sent" if sent else "logged",
         "message": "이메일이 발송되었습니다." if sent else "요청이 저장되었습니다. (SMTP 미설정 — 실제 발송 없음)",
     }
+
+
+@app.delete("/api/documents/admin/requests/{request_id}")
+async def delete_doc_request(request_id: int, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    conn = auth_db._get_conn()
+    try:
+        conn.execute("DELETE FROM doc_requests WHERE id = ?", (request_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"status": "deleted"}
+
+
+@app.patch("/api/documents/admin/requests/{request_id}")
+async def update_doc_request(request_id: int, body: dict, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    due_date = body.get("due_date", "").strip()
+    conn = auth_db._get_conn()
+    try:
+        conn.execute("UPDATE doc_requests SET due_date = ? WHERE id = ?", (due_date, request_id))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"status": "updated"}
+
+
+@app.post("/api/documents/admin/files/{post_id}/reject")
+async def reject_doc_file(post_id: int, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    auth_db.reject_file(post_id)
+    return {"status": "rejected"}
+
+
+@app.patch("/api/documents/admin/periods/{period_id}")
+async def update_period(period_id: int, body: dict, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    due_date = body.get("due_date", "").strip()
+    auth_db.update_period(period_id, due_date)
+    return {"status": "updated"}
+
+
+@app.patch("/api/documents/admin/company/{company_id}/period/{period_id}/due-date")
+async def bulk_update_company_period_due_date(company_id: int, period_id: int, body: dict, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    due_date = body.get("due_date", "").strip()
+    auth_db.bulk_update_due_date(company_id, period_id, due_date)
+    return {"status": "updated"}
+
+
+@app.delete("/api/documents/admin/company/{company_id}/period/{period_id}/requests")
+async def delete_company_period_requests(company_id: int, period_id: int, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    auth_db.delete_company_period_requests(company_id, period_id)
+    return {"status": "deleted"}
+
+
+@app.post("/api/documents/admin/bulk-request/{company_id}/{period}")
+async def bulk_create_requests(company_id: int, period: str, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    new_ids = auth_db.bulk_create_requests(
+        company_id=company_id,
+        period=period,
+        created_by=user["user_id"],
+        created_by_name=user.get("name", ""),
+    )
+    return {"created": len(new_ids), "ids": new_ids}
+
+
+@app.post("/api/documents/admin/bulk-request-all/{period}")
+async def bulk_create_requests_all(period: str, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    companies = auth_db.get_all_companies()
+    total_created = 0
+    for company in companies:
+        new_ids = auth_db.bulk_create_requests(
+            company_id=company["id"],
+            period=period,
+            created_by=user["user_id"],
+            created_by_name=user.get("name", ""),
+        )
+        total_created += len(new_ids)
+    return {"created": total_created}
+
+
+@app.get("/api/documents/requests/{request_id}/files")
+async def get_request_files(request_id: int, user=Depends(get_current_user)):
+    return {"files": auth_db.get_files_for_request(request_id)}
+
+
+@app.get("/api/documents/requests/{request_id}/comments")
+async def get_comments(request_id: int, user=Depends(get_current_user)):
+    return {"comments": auth_db.get_comments(request_id)}
+
+
+@app.post("/api/documents/requests/{request_id}/comments")
+async def add_comment(request_id: int, body: dict, user=Depends(get_current_user)):
+    content = body.get("content", "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="내용을 입력하세요.")
+    comment = auth_db.add_comment(
+        request_id=request_id,
+        author_id=user["user_id"],
+        author_name=user.get("name", user.get("email", "")),
+        author_role=user.get("role", "user"),
+        content=content,
+    )
+    return comment
+
+
+@app.post("/api/documents/requests/{request_id}/comments/read")
+async def mark_comments_read(request_id: int, user=Depends(get_current_user)):
+    auth_db.mark_comments_read(user_id=user["user_id"], request_id=request_id)
+    return {"status": "ok"}
+
+
+@app.patch("/api/documents/comments/{comment_id}")
+async def edit_comment(comment_id: int, body: dict, user=Depends(get_current_user)):
+    content = body.get("content", "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="내용을 입력하세요.")
+    updated = auth_db.edit_comment(comment_id=comment_id, user_id=user["user_id"], content=content)
+    if updated is None:
+        raise HTTPException(status_code=403, detail="수정 권한이 없습니다.")
+    return updated
+
+
+@app.delete("/api/documents/comments/{comment_id}")
+async def delete_comment(comment_id: int, user=Depends(get_current_user)):
+    ok = auth_db.delete_comment(
+        comment_id=comment_id,
+        user_id=user["user_id"],
+        is_admin=user.get("role") == "admin",
+    )
+    if not ok:
+        raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
+    return {"status": "ok"}
+
+
+@app.get("/api/documents/admin/download-zip/{company_id}/{period}")
+async def download_period_zip(company_id: int, period: str, user=Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자만 접근할 수 있습니다.")
+    files = auth_db.get_files_for_period(company_id, period)
+    if not files:
+        raise HTTPException(status_code=404, detail="다운로드할 파일이 없습니다.")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for f in files:
+            if f["file_path"] and os.path.exists(f["file_path"]):
+                arcname = f"{f['category_name']}_{f['file_name'] or f['title']}"
+                zf.write(f["file_path"], arcname=arcname)
+    buf.seek(0)
+
+    zip_name = f"{period}_files.zip"
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zip_name}"'},
+    )
 
 
 if __name__ == "__main__":
