@@ -9,11 +9,18 @@ export default function HomePage() {
   const [scrolled, setScrolled] = useState(false);
   const [demoModalOpen, setDemoModalOpen] = useState(false);
   const [ytHovered, setYtHovered] = useState(false);
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [videoKorModalOpen, setVideoKorModalOpen] = useState(false);
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactSuccess, setContactSuccess] = useState(false);
+  const [contactError, setContactError] = useState("");
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
+    const container = document.querySelector(".snap-y");
+    if (!container) return;
+    const onScroll = () => setScrolled(container.scrollTop > 50);
+    container.addEventListener("scroll", onScroll);
+    return () => container.removeEventListener("scroll", onScroll);
   }, []);
 
   const scrollTo = (id: string) => {
@@ -21,18 +28,35 @@ export default function HomePage() {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setContactLoading(true);
+    setContactError("");
+    setContactSuccess(false);
     const fd = new FormData(e.currentTarget);
-    const company = fd.get("company") as string;
-    const name = fd.get("name") as string;
-    const email = fd.get("email") as string;
-    const message = fd.get("message") as string;
-    const subject = encodeURIComponent(`[Easy View 문의] ${company} - ${name}`);
-    const body = encodeURIComponent(
-      `회사명: ${company}\n담당자: ${name}\n이메일: ${email}\n\n문의 내용:\n${message}\n`
-    );
-    window.location.href = `mailto:kr_easyview@pwc.com?subject=${subject}&body=${body}`;
+    const data = {
+      name: fd.get("name") as string,
+      company: fd.get("company") as string,
+      email: fd.get("email") as string,
+      message: fd.get("message") as string,
+    };
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error || "전송 실패");
+      }
+      setContactSuccess(true);
+      (e.target as HTMLFormElement).reset();
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : "오류가 발생했습니다.");
+    } finally {
+      setContactLoading(false);
+    }
   };
 
   return (
@@ -391,12 +415,7 @@ export default function HomePage() {
                 title: "Summary Dashboard",
                 desc: "주요 KPI와 손익, 유동성 지표를 한눈에 파악하고 경영 현황을 신속하게 인지합니다.",
                 icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
-                    <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
-                    <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
-                    <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
-                  </svg>
+                  <img src="/icons/icon-dashboard.svg" width={26} height={26} alt="dashboard" style={{ filter: "invert(38%) sepia(94%) saturate(1974%) hue-rotate(357deg) brightness(101%) contrast(97%)" }} />
                 ),
                 preview: (
                   <div className="max-h-0 group-hover:max-h-40 overflow-hidden transition-all duration-500 ease-in-out">
@@ -434,9 +453,7 @@ export default function HomePage() {
                 title: "손익 분석",
                 desc: "매출, 영업이익, 당기순이익 추이를 분석하고 거래처별 매출 비중을 파악합니다.",
                 icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <img src="/icons/icon-pl.svg" width={26} height={26} alt="P&L" style={{ filter: "invert(38%) sepia(94%) saturate(1974%) hue-rotate(357deg) brightness(101%) contrast(97%)" }} />
                 ),
                 preview: (
                   <div className="max-h-0 group-hover:max-h-40 overflow-hidden transition-all duration-500 ease-in-out">
@@ -462,10 +479,7 @@ export default function HomePage() {
                 title: "재무상태 분석",
                 desc: "자산·부채·자본 구조 변화를 추적하고 회전율 개선 기회를 발굴합니다.",
                 icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <img src="/icons/icon-balance.svg" width={26} height={26} alt="balance sheet" style={{ filter: "invert(38%) sepia(94%) saturate(1974%) hue-rotate(357deg) brightness(101%) contrast(97%)" }} />
                 ),
                 preview: (
                   <div className="max-h-0 group-hover:max-h-40 overflow-hidden transition-all duration-500 ease-in-out">
@@ -493,11 +507,7 @@ export default function HomePage() {
                 title: "전표 분석",
                 desc: "전표 기표내역을 일자·계정·거래처별로 분석하고 상대계정을 추적합니다.",
                 icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <rect x="9" y="3" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M9 12h6M9 16h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
+                  <img src="/icons/icon-journal.svg" width={26} height={26} alt="journal" style={{ filter: "invert(38%) sepia(94%) saturate(1974%) hue-rotate(357deg) brightness(101%) contrast(97%)" }} />
                 ),
                 preview: (
                   <div className="max-h-0 group-hover:max-h-40 overflow-hidden transition-all duration-500 ease-in-out">
@@ -525,9 +535,7 @@ export default function HomePage() {
                 title: "시나리오 분석",
                 desc: "6가지 시나리오로 자동 탐지하여 비정상 거래 위험을 선제적으로 알립니다.",
                 icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.95L13.75 4a2 2 0 00-3.5 0L3.32 16.05A2 2 0 005.07 19z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <img src="/icons/icon-scenario.svg" width={26} height={26} alt="scenario" style={{ filter: "invert(38%) sepia(94%) saturate(1974%) hue-rotate(357deg) brightness(101%) contrast(97%)" }} />
                 ),
                 preview: (
                   <div className="max-h-0 group-hover:max-h-40 overflow-hidden transition-all duration-500 ease-in-out">
@@ -556,10 +564,7 @@ export default function HomePage() {
                 title: "PDF 리포트",
                 desc: "현재 탭 또는 전체 분석 결과를 PDF로 원클릭 내보내기합니다.",
                 icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    <polyline points="14 2 14 8 20 8" stroke="currentColor" strokeWidth="1.5" fill="none" />
-                  </svg>
+                  <img src="/icons/icon-pdf.svg" width={26} height={26} alt="PDF" style={{ filter: "invert(38%) sepia(94%) saturate(1974%) hue-rotate(357deg) brightness(101%) contrast(97%)" }} />
                 ),
                 preview: (
                   <div className="max-h-0 group-hover:max-h-40 overflow-hidden transition-all duration-500 ease-in-out">
@@ -597,7 +602,7 @@ export default function HomePage() {
               <div key={card.title} className="group relative bg-white border border-[#E0E5EA] rounded-lg overflow-hidden hover:shadow-lg hover:border-[#FD5108]/50 transition-all duration-300">
                 <div className="absolute inset-0 bg-gradient-to-br from-[#FD5108]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 <div className="relative p-7 h-full flex flex-col">
-                  <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-4" style={{ background: "linear-gradient(135deg, #FF9F00, #FD5108)", color: "white" }}>
+                  <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-4" style={{ background: "linear-gradient(135deg, #FFE8D4, #FFCDA8)", color: "#FD5108" }}>
                     {card.icon}
                   </div>
                   <h3 className="text-lg font-bold text-[#222C40] mb-2">{card.title}</h3>
@@ -615,7 +620,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-20">
             <div className="inline-block">
-              <div className="text-[12px] font-semibold text-[#FD5108] tracking-widest uppercase mb-3 block">학습 자료</div>
+              <div className="text-[12px] font-semibold text-[#FD5108] tracking-widest uppercase mb-3 block">참고 자료</div>
               <h2 className="text-3xl md:text-4xl font-bold text-[#222C40] mb-4 leading-tight">
                 Easy View를 
                 <br />
@@ -627,42 +632,49 @@ export default function HomePage() {
           <div className="relative grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 동영상 매뉴얼 (국문) */}
             <div
-              className="bg-white rounded-lg border border-[#DFE3E6] p-5 flex items-start gap-4 transition-all duration-500"
-              style={{ transform: ytHovered ? "scale(0.88)" : "scale(1)", opacity: ytHovered ? 0.35 : 1, pointerEvents: ytHovered ? "none" : "auto" }}
+              onClick={() => setVideoKorModalOpen(true)}
+              className="bg-white rounded-lg border border-[#DFE3E6] p-5 flex items-start gap-4 transition-all duration-500 cursor-pointer hover:border-[#FD5108]/50 hover:shadow-md"
             >
               <div className="shrink-0 w-10 h-10 rounded bg-[#FD5108]/10 flex items-center justify-center text-[#FD5108]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <polygon points="5 3 19 12 5 21 5 3" stroke="currentColor" strokeWidth="1.5" fill="currentColor" opacity="0.2" />
+                  <polygon points="5 3 19 12 5 21 5 3" stroke="currentColor" strokeWidth="1.5" fill="currentColor" opacity="0.6" />
                 </svg>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-[#222C40] mb-0.5">동영상 매뉴얼 (국문)</h3>
                 <p className="text-[12px] text-[#4B535E] mb-2">Easy View의 전체 기능을 한국어 동영상으로 안내합니다.</p>
-                <span className="text-[12px] text-[#A1A8B3]">준비 중</span>
+                <span className="text-[12px] font-semibold text-[#FD5108] flex items-center gap-1">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" /></svg>
+                  클릭하여 재생
+                </span>
               </div>
             </div>
 
             {/* Video Manual (English) */}
             <div
-              className="bg-white rounded-lg border border-[#DFE3E6] p-5 flex items-start gap-4 transition-all duration-500"
-              style={{ transform: ytHovered ? "scale(0.88)" : "scale(1)", opacity: ytHovered ? 0.35 : 1, pointerEvents: ytHovered ? "none" : "auto" }}
+              onClick={() => setVideoModalOpen(true)}
+              className="bg-white rounded-lg border border-[#DFE3E6] p-5 flex items-start gap-4 transition-all duration-500 cursor-pointer hover:border-[#FD5108]/50 hover:shadow-md"
             >
-              <div className="shrink-0 w-10 h-10 rounded bg-[#F5F7F8] flex items-center justify-center text-[#4B535E]">
+              <div className="shrink-0 w-10 h-10 rounded bg-[#FD5108]/10 flex items-center justify-center text-[#FD5108]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <polygon points="5 3 19 12 5 21 5 3" stroke="currentColor" strokeWidth="1.5" fill="currentColor" opacity="0.2" />
+                  <polygon points="5 3 19 12 5 21 5 3" stroke="currentColor" strokeWidth="1.5" fill="currentColor" opacity="0.6" />
                 </svg>
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-[#222C40] mb-0.5">Video Manual (English)</h3>
                 <p className="text-[12px] text-[#4B535E] mb-2">Easy View full feature walkthrough in English.</p>
-                <span className="text-[12px] text-[#A1A8B3]">Coming soon</span>
+                <span className="text-[12px] font-semibold text-[#FD5108] flex items-center gap-1">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" /></svg>
+                  클릭하여 재생
+                </span>
               </div>
             </div>
 
             {/* 사용자 가이드 (PDF) */}
-            <div
-              className="bg-white rounded-lg border border-[#DFE3E6] p-5 flex items-start gap-4 transition-all duration-500"
-              style={{ transform: ytHovered ? "scale(0.88)" : "scale(1)", opacity: ytHovered ? 0.35 : 1, pointerEvents: ytHovered ? "none" : "auto" }}
+            <a
+              href="/Worldwide_Easy_View_3.0_사용_가이드.pdf"
+              download="Worldwide_Easy_View_3.0_사용_가이드.pdf"
+              className="bg-white rounded-lg border border-[#DFE3E6] p-5 flex items-start gap-4 transition-all duration-500 hover:border-[#FD5108]/50 hover:shadow-md cursor-pointer"
             >
               <div className="shrink-0 w-10 h-10 rounded bg-red-50 flex items-center justify-center text-red-600">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -673,15 +685,17 @@ export default function HomePage() {
               <div>
                 <h3 className="text-sm font-semibold text-[#222C40] mb-0.5">사용자 가이드 (PDF)</h3>
                 <p className="text-[12px] text-[#4B535E] mb-2">Worldwide Easy View 3.0 주요기능 매뉴얼 (57페이지)</p>
-                <span className="text-[12px] text-[#A1A8B3]">준비 중</span>
+                <span className="text-[12px] text-[#FD5108] font-medium flex items-center gap-1">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M12 16V4m0 12l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  다운로드
+                </span>
               </div>
-            </div>
+            </a>
 
-            {/* 삼일회계법인 공식 YouTube — hover 시 화면 꽉 채우도록 확장 */}
+            {/* 삼일회계법인 공식 YouTube — 클릭 시 확장 */}
             <div
-              className="bg-white rounded-lg border border-[#DFE3E6] p-5 flex items-start gap-4 transition-all duration-500 cursor-pointer"
-              style={{ transform: ytHovered ? "scale(0.88)" : "scale(1)", opacity: ytHovered ? 0.6 : 1 }}
-              onMouseEnter={() => setYtHovered(true)}
+              className="bg-white rounded-lg border border-[#DFE3E6] p-5 flex items-start gap-4 transition-all duration-500 cursor-pointer hover:border-red-400/50 hover:shadow-md"
+              onClick={() => setYtHovered(true)}
             >
               <div className="shrink-0 w-10 h-10 rounded bg-red-50 flex items-center justify-center text-red-600">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -694,7 +708,7 @@ export default function HomePage() {
                 <p className="text-[12px] text-[#4B535E] mb-2">Worldwide Easy View 영상을 확인하십시오.</p>
                 <span className="text-[12px] text-red-500 font-medium flex items-center gap-1">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" /></svg>
-                  hover로 재생
+                  클릭하여 재생
                 </span>
               </div>
             </div>
@@ -742,68 +756,129 @@ export default function HomePage() {
       </section>
 
       {/* ===== Digital & AI ===== */}
-      <section id="digital" className="snap-start min-h-screen bg-[#F5F7F8] py-16 md:py-24">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="mb-10">
-            <div className="text-[11px] font-semibold text-[#FD5108] tracking-wider uppercase mb-2">Digital &amp; AI</div>
-            <h2 className="text-xl md:text-2xl font-bold text-[#222C40] mb-3">Digital &amp; AI</h2>
-            <p className="text-sm text-[#4B535E] leading-relaxed max-w-3xl">
-              기업이 Data를 기반으로 한 신속, 정확한 의사결정과 AI 적용을 위한
-              최적화된 조직구조, Digital 환경 및 Business Process를 구축할 수 있도록
-              자문 업무와 관련 Digital &amp; AI Solution을 제공하고 있습니다.
-            </p>
-            <a
-              href="https://www.pwc.com/kr/ko/services/ax-node.html"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-3 text-[12px] font-medium text-[#FD5108] hover:text-[#E87722] transition-colors"
-            >
-              PwC AX Node 자세히 보기
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </a>
+      <section id="digital" className="snap-start min-h-screen bg-[#F5F7F8] py-24 md:py-40">
+        <div className="max-w-6xl mx-auto px-6 w-full">
+
+          {/* 섹션 헤더 */}
+          <div className="text-center mb-20">
+            <div className="inline-block">
+              <div className="text-[12px] font-semibold text-[#FD5108] tracking-widest uppercase mb-3 block">Digital &amp; AI</div>
+              <h2 className="text-3xl md:text-4xl font-bold text-[#222C40] mb-4 leading-tight">
+                Worldwide Easy View의<br />
+                <span style={{ background: "linear-gradient(135deg, #FF9F00, #FD5108)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>핵심 가치</span>
+              </h2>
+            </div>
           </div>
 
-          <div className="space-y-3 mb-10 max-w-3xl">
-            {[
-              { num: "01", text: "수작업 업무, 단순 반복업무, 병목 업무의 파악 및 개선 방안 자문" },
-              { num: "02", text: "업무 자동화, 효율화를 위한 Digital & AI Solution 제공" },
-              { num: "03", text: "비즈니스 의사결정 지원을 위한 Data Analytics 서비스 제공" },
-            ].map((item) => (
-              <div key={item.num} className="flex items-center gap-3 bg-white border border-[#DFE3E6] rounded-lg px-5 py-3.5">
-                <div className="shrink-0 w-7 h-7 rounded-full bg-[#FD5108] text-white text-[11px] font-bold flex items-center justify-center">
-                  {item.num}
+          {/* 2-col: 특징 + 도넛 차트 */}
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+
+            {/* ── 왼쪽: 4가지 특징 ── */}
+            <div className="space-y-5">
+              {[
+                {
+                  title: "신뢰성",
+                  desc: "대상 법인의 데이터를 직접 이용하여 경영실적과 지표를 확인 가능",
+                  iconSrc: "/icons/icon-trust.svg",
+                },
+                {
+                  title: "접근성",
+                  desc: "해외법인 자료가 번역된 보고서를 통해 언어장벽을 해소한 세부 정보에 접근 가능",
+                  iconSrc: "/icons/icon-globe.svg",
+                },
+                {
+                  title: "편리성",
+                  desc: "언제 어디서나 웹이나 모바일로 현지 경영정보에 접근 가능",
+                  iconSrc: "/icons/icon-convenience.svg",
+                },
+                {
+                  title: "경제성",
+                  desc: "합리적인 금액대의 투자로 ERP 내 BIS/BI 구축과 동일한 효과를 확인할 수 있음",
+                  iconSrc: "/icons/icon-mobile.svg",
+                },
+              ].map((item) => (
+                <div key={item.title} className="flex items-start gap-4 bg-white rounded-xl border border-[#E0E5EA] p-5 hover:border-[#FD5108]/40 hover:shadow-md transition-all">
+                  <div className="shrink-0 w-10 h-10 rounded-lg bg-[#FD5108]/10 flex items-center justify-center">
+                    <img src={item.iconSrc} alt={item.title} width="20" height="20" style={{ filter: "invert(38%) sepia(94%) saturate(1974%) hue-rotate(357deg) brightness(101%) contrast(97%)" }} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-[#FD5108] mb-1">{item.title}</div>
+                    <div className="text-sm text-[#4B535E] leading-relaxed">{item.desc}</div>
+                  </div>
                 </div>
-                <div className="text-sm text-[#4B535E]">{item.text}</div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          <div className="flex flex-wrap gap-2">
-            {[
-              { label: "Robotic Application", href: "https://www.pwc.com/kr/ko/digital-solutions/robotic-application.html", accent: false },
-              { label: "AI Solutions", href: "https://www.pwc.com/kr/ko/services/ax-node/ai-solutions.html", accent: false },
-              { label: "KSOX AI", href: "https://www.pwc.com/kr/ko/services/ax-node/ksox-ai.html", accent: false },
-              { label: "Digital & AI Transformation", href: "https://www.pwc.com/kr/ko/services/ax-node/digital-ai.html", accent: false },
-              { label: "Easy View Data Analytics", href: "https://www.pwc.com/kr/ko/services/ax-node/easy-view.html", accent: true },
-              { label: "ERP 도입·전환 자문", href: "https://www.pwc.com/kr/ko/services/ax-node/erp.html", accent: false },
-              { label: "Next Generation PA 연결 플랫폼", href: "https://www.pwc.com/kr/ko/digital-solutions/next-gen-pa.html", accent: false },
-            ].map((tag) => (
-              <a
-                key={tag.label}
-                href={tag.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`px-3 py-1.5 rounded text-[12px] font-medium border transition-colors ${
-                  tag.accent
-                    ? "bg-[#FD5108] text-white border-[#FD5108] hover:bg-[#D04A02]"
-                    : "bg-white text-[#4B535E] border-[#DFE3E6] hover:border-[#FD5108] hover:text-[#FD5108]"
-                }`}
-              >
-                {tag.label}
-              </a>
-            ))}
+            {/* ── 오른쪽: 국가별 도넛 차트 ── */}
+            <div className="bg-white rounded-2xl border border-[#E0E5EA] shadow-lg p-8">
+              <div className="flex items-center gap-2 mb-6">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#4B535E" strokeWidth="1.5"/><path d="M12 6v6l4 2" stroke="#4B535E" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                <span className="text-sm font-semibold text-[#222C40]">국가별 서비스 제공 현황</span>
+              </div>
+
+              {/* SVG Donut Chart — path 기반 */}
+              <div className="flex items-center justify-center mb-6">
+                {(() => {
+                  const cx = 110, cy = 110, ro = 90, ri = 60, gap = 1.5;
+                  const segments = [
+                    { pct: 35.3, color: "#FD5108", label: "한국" },
+                    { pct: 18.6, color: "#FF9F00", label: "중국" },
+                    { pct: 11.3, color: "#FFCDA8", label: "미국" },
+                    { pct: 6.8,  color: "#222C40", label: "베트남" },
+                    { pct: 2.7,  color: "#A1A8B3", label: "필리핀" },
+                    { pct: 25.3, color: "#FE7C39", label: "기타" },
+                  ];
+                  const toRad = (deg: number) => (deg - 90) * Math.PI / 180;
+                  const pt = (r: number, deg: number) => [
+                    (cx + r * Math.cos(toRad(deg))).toFixed(3),
+                    (cy + r * Math.sin(toRad(deg))).toFixed(3),
+                  ];
+                  let cum = 0;
+                  const paths = segments.map((s) => {
+                    const s1 = cum + gap / 2;
+                    const e1 = cum + s.pct * 3.6 - gap / 2;
+                    cum += s.pct * 3.6;
+                    const large = s.pct * 3.6 - gap > 180 ? 1 : 0;
+                    const [ox1, oy1] = pt(ro, s1);
+                    const [ox2, oy2] = pt(ro, e1);
+                    const [ix2, iy2] = pt(ri, e1);
+                    const [ix1, iy1] = pt(ri, s1);
+                    return { ...s, d: `M${ox1} ${oy1} A${ro} ${ro} 0 ${large} 1 ${ox2} ${oy2} L${ix2} ${iy2} A${ri} ${ri} 0 ${large} 0 ${ix1} ${iy1} Z` };
+                  });
+                  return (
+                    <svg viewBox="0 0 220 220" width="210" height="210">
+                      {paths.map((p) => <path key={p.label} d={p.d} fill={p.color} />)}
+                      <text x="110" y="104" textAnchor="middle" fontSize="26" fontWeight="800" fill="#222C40" fontFamily="sans-serif">2,306</text>
+                      <text x="110" y="122" textAnchor="middle" fontSize="12" fill="#A1A8B3" fontFamily="sans-serif">합계</text>
+                    </svg>
+                  );
+                })()}
+              </div>
+
+              {/* Legend */}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                {[
+                  { color: "#FD5108", label: "한국",   count: "815", pct: "35.3%" },
+                  { color: "#FE7C39", label: "기타",   count: "583", pct: "25.3%" },
+                  { color: "#FF9F00", label: "중국",   count: "428", pct: "18.6%" },
+                  { color: "#FFCDA8", label: "미국",   count: "261", pct: "11.3%" },
+                  { color: "#222C40", label: "베트남", count: "156", pct: "6.8%" },
+                  { color: "#A1A8B3", label: "필리핀", count: "63",  pct: "2.7%" },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                      <span className="text-xs text-[#4B535E]">{item.label}</span>
+                    </div>
+                    <div className="text-xs text-right">
+                      <span className="font-semibold text-[#222C40]">{item.count}</span>
+                      <span className="text-[#A1A8B3] ml-1">({item.pct})</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
@@ -904,8 +979,8 @@ export default function HomePage() {
 
               <div className="space-y-4">
                 <div className="flex items-center gap-4 bg-white rounded-lg border border-[#DFE3E6] p-5 hover:border-[#FD5108]/50 hover:shadow-md transition-all">
-                  <div className="shrink-0 w-12 h-12 rounded-lg flex items-center justify-center text-lg" style={{ background: "linear-gradient(135deg, #FF9F00, #FD5108)", color: "white" }}>
-                    ✉️
+                  <div className="shrink-0 w-12 h-12 rounded-lg bg-[#FD5108]/10 flex items-center justify-center">
+                    <img src="/icons/icon-email.svg" alt="이메일" width="22" height="22" style={{ filter: "invert(38%) sepia(94%) saturate(1974%) hue-rotate(357deg) brightness(101%) contrast(97%)" }} />
                   </div>
                   <div>
                     <div className="text-[12px] font-semibold text-[#4B535E] mb-0.5">이메일</div>
@@ -916,8 +991,8 @@ export default function HomePage() {
                 </div>
 
                 <div className="flex items-center gap-4 bg-white rounded-lg border border-[#DFE3E6] p-5 hover:border-[#FD5108]/50 hover:shadow-md transition-all">
-                  <div className="shrink-0 w-12 h-12 rounded-lg flex items-center justify-center text-lg" style={{ background: "linear-gradient(135deg, #FF9F00, #FD5108)", color: "white" }}>
-                    📱
+                  <div className="shrink-0 w-12 h-12 rounded-lg bg-[#FD5108]/10 flex items-center justify-center">
+                    <img src="/icons/icon-phone.svg" alt="연락처" width="22" height="22" style={{ filter: "invert(38%) sepia(94%) saturate(1974%) hue-rotate(357deg) brightness(101%) contrast(97%)" }} />
                   </div>
                   <div>
                     <div className="text-[12px] font-semibold text-[#4B535E] mb-0.5">연락처</div>
@@ -928,8 +1003,8 @@ export default function HomePage() {
                 </div>
 
                 <div className="flex items-start gap-4 bg-white rounded-lg border border-[#DFE3E6] p-5">
-                  <div className="shrink-0 w-12 h-12 rounded-lg flex items-center justify-center text-lg" style={{ background: "linear-gradient(135deg, #FF9F00, #FD5108)", color: "white" }}>
-                    🏢
+                  <div className="shrink-0 w-12 h-12 rounded-lg bg-[#FD5108]/10 flex items-center justify-center">
+                    <img src="/icons/icon-building.svg" alt="팀" width="22" height="22" style={{ filter: "invert(38%) sepia(94%) saturate(1974%) hue-rotate(357deg) brightness(101%) contrast(97%)" }} />
                   </div>
                   <div>
                     <div className="text-[12px] font-semibold text-[#4B535E] mb-1">팀</div>
@@ -940,33 +1015,73 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Right: Form or CTA */}
+            {/* Right: 문의 폼 */}
             <div className="bg-white rounded-xl border border-[#E0E5EA] shadow-lg overflow-hidden">
+              {/* 상단 주황 accent */}
+              <div className="h-1.5 w-full bg-gradient-to-r from-[#FD5108] to-[#FF7520]" />
               <div className="p-8">
-                <h3 className="text-xl font-bold text-[#222C40] mb-6">지금 시작하기</h3>
-                <div className="space-y-4">
+                <div className="text-[12px] font-semibold text-[#FD5108] tracking-wide uppercase mb-1">Contact Us</div>
+                <h3 className="text-xl font-bold text-[#222C40] mb-6">문의하기</h3>
+                <form onSubmit={handleSubmit} className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      name="name"
+                      placeholder="성함"
+                      required
+                      className="w-full px-3 py-2.5 rounded-lg border border-[#DFE3E6] bg-[#F5F7F8] text-sm text-[#222C40] placeholder-[#A1A8B3] focus:outline-none focus:ring-2 focus:ring-[#FD5108]/30 focus:border-[#FD5108] transition-all"
+                    />
+                    <input
+                      type="text"
+                      name="company"
+                      placeholder="회사명"
+                      required
+                      className="w-full px-3 py-2.5 rounded-lg border border-[#DFE3E6] bg-[#F5F7F8] text-sm text-[#222C40] placeholder-[#A1A8B3] focus:outline-none focus:ring-2 focus:ring-[#FD5108]/30 focus:border-[#FD5108] transition-all"
+                    />
+                  </div>
+                  <input
+                    type="email"
+                    name="email"
+                    placeholder="이메일"
+                    required
+                    className="w-full px-3 py-2.5 rounded-lg border border-[#DFE3E6] bg-[#F5F7F8] text-sm text-[#222C40] placeholder-[#A1A8B3] focus:outline-none focus:ring-2 focus:ring-[#FD5108]/30 focus:border-[#FD5108] transition-all"
+                  />
+                  <textarea
+                    name="message"
+                    placeholder="문의 내용을 입력해주세요."
+                    required
+                    rows={4}
+                    className="w-full px-3 py-2.5 rounded-lg border border-[#DFE3E6] bg-[#F5F7F8] text-sm text-[#222C40] placeholder-[#A1A8B3] focus:outline-none focus:ring-2 focus:ring-[#FD5108]/30 focus:border-[#FD5108] transition-all resize-none"
+                  />
+                  {contactError && (
+                    <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+                      {contactError}
+                    </div>
+                  )}
+                  {contactSuccess && (
+                    <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2 flex items-center gap-2">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      문의가 성공적으로 전송되었습니다!
+                    </div>
+                  )}
                   <button
-                    onClick={() => setDemoModalOpen(true)}
-                    className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-lg font-semibold text-white transition-all"
+                    type="submit"
+                    disabled={contactLoading}
+                    className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-lg font-bold text-white transition-all hover:opacity-90 hover:shadow-lg disabled:opacity-50"
                     style={{ background: "linear-gradient(135deg, #FF9F00, #FD5108)" }}
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                      <path d="M15 17H20L18.5 15.5M9 17h4v.01M5 17h.01M20 9h-3V5a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h3v3l4-3h5a2 2 0 002-2v-5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="white" opacity="0.8" />
-                    </svg>
-                    데모 요청하기
+                    {contactLoading ? (
+                      "전송 중..."
+                    ) : (
+                      <>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                          <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        문의하기
+                      </>
+                    )}
                   </button>
-                  <button
-                    onClick={() => scrollTo("services")}
-                    className="w-full py-3 px-6 rounded-lg font-semibold border-2 border-[#222C40] text-[#222C40] hover:bg-[#222C40] hover:text-white transition-all"
-                  >
-                    기능 살펴보기
-                  </button>
-                </div>
-              </div>
-              <div className="bg-gradient-to-r from-[#FF9F00]/10 to-[#FD5108]/10 border-t border-[#E0E5EA] px-8 py-4">
-                <p className="text-[12px] text-[#4B535E]">
-                  💡 <strong>팁:</strong> 간단한 데모 요청만으로도 전담 담당자가 배정됩니다.
-                </p>
+                </form>
               </div>
             </div>
           </div>
@@ -975,6 +1090,80 @@ export default function HomePage() {
 
       {/* ===== Demo Modal ===== */}
       <DemoRequestModal isOpen={demoModalOpen} onClose={() => setDemoModalOpen(false)} />
+
+      {/* ===== 국문 영상 모달 ===== */}
+      {videoKorModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm"
+          onClick={() => setVideoKorModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-4xl mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setVideoKorModalOpen(false)}
+              className="absolute -top-10 right-0 w-8 h-8 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center text-white transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+            <video
+              src="/Worldwide_Easy_View_Manual.mp4"
+              controls
+              autoPlay
+              className="w-full rounded-xl shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ===== 영상 모달 ===== */}
+      {videoModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm"
+          onClick={() => setVideoModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-4xl mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setVideoModalOpen(false)}
+              className="absolute -top-10 right-0 w-8 h-8 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center text-white transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+            <video
+              src="/Worldwide_Easy_View_Manual_Eng.mp4"
+              controls
+              autoPlay
+              className="w-full rounded-xl shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ===== Top 버튼 ===== */}
+      {scrolled && (
+        <button
+          onClick={() => {
+            const container = document.querySelector(".snap-y");
+            if (container) container.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className="fixed bottom-8 right-24 z-50 w-11 h-11 rounded-full bg-[#FD5108] hover:bg-[#E84A00] text-white shadow-lg hover:shadow-xl transition-all flex flex-col items-center justify-center gap-0"
+          aria-label="맨 위로"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M18 15l-6-6-6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="text-[9px] font-bold leading-none">TOP</span>
+        </button>
+      )}
 
       {/* ===== Footer ===== */}
       <footer className="bg-[#F5F7F8] border-t border-[#DFE3E6]">

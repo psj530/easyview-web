@@ -28,3 +28,8 @@ frontend/out/
 docs/NotoSansKR.ttf
 docs/*.pdf
 *.pdf
+
+# Large files
+*.mp4
+*.zip
+Icon & Pictograms/
