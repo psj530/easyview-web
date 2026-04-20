@@ -289,6 +289,11 @@ class AuthDB:
             if cursor.fetchone()[0] == 0:
                 self._seed_data(conn)
 
+            # Seed doc_categories if empty (must run before migration logic below)
+            cursor = conn.execute("SELECT COUNT(*) FROM doc_categories")
+            if cursor.fetchone()[0] == 0:
+                self._seed_doc_categories(conn)
+
             # Remove deprecated categories and add 정산표 if needed
             deprecated = conn.execute(
                 "SELECT id FROM doc_categories WHERE name IN ('세미커넥터 전표', '기타')"
@@ -303,11 +308,6 @@ class AuthDB:
                 conn.execute(
                     "INSERT INTO doc_categories (name, description, is_required) VALUES ('정산표', '본사/해외법인 정산표 (패키지파일)', 0)"
                 )
-
-            # Seed doc_categories if empty
-            cursor = conn.execute("SELECT COUNT(*) FROM doc_categories")
-            if cursor.fetchone()[0] == 0:
-                self._seed_doc_categories(conn)
 
             conn.commit()
         finally:

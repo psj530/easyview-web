@@ -296,6 +296,49 @@ function CompanyChecklist({ companies, selected, onChange }: {
   );
 }
 
+// ---- Reusable date input with calendar picker ----
+function DateInput({ value, onChange, placeholder, className, inputClassName, iconSize = 16 }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  className?: string;
+  inputClassName?: string;
+  iconSize?: number;
+}) {
+  const pickerRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className={`relative ${className ?? ""}`}>
+      <input
+        type="text"
+        placeholder={placeholder ?? "YYYY-MM-DD"}
+        maxLength={10}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={inputClassName ?? "w-full border border-[#E8E8E8] rounded px-3 py-2.5 pr-10 text-sm focus:outline-none focus:border-[#F68600]"}
+      />
+      <input
+        ref={pickerRef}
+        type="date"
+        className="absolute inset-0 opacity-0 pointer-events-none"
+        tabIndex={-1}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <button
+        type="button"
+        onClick={() => pickerRef.current?.showPicker?.()}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-[#ABABAB] hover:text-[#464646] transition-colors"
+      >
+        <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 // ---- 요청 등록 modal (unified) ----
 function RequestRegisterModal({ onClose, onCreated, companies, categories }: {
   onClose: () => void;
@@ -444,7 +487,7 @@ function RequestRegisterModal({ onClose, onCreated, companies, categories }: {
           {/* 기한 */}
           <div>
             <label className="block text-sm font-medium text-[#2D2D2D] mb-2">제출 기한 <span className="text-[#ABABAB] font-normal text-xs">(선택)</span></label>
-            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full border border-[#E8E8E8] rounded px-3 py-2.5 text-sm focus:outline-none focus:border-[#F68600]" />
+            <DateInput value={dueDate} onChange={setDueDate} />
           </div>
           {/* 서류 종류 */}
           <div>
@@ -703,7 +746,7 @@ function DocumentDetailModal({ requestId, categoryName, companyName, periodLabel
                   </div>
                 )}
                 {/* Comment card */}
-                <div className="group border border-[#E8E8E8] rounded overflow-hidden hover:border-[#C8C8C8] transition-colors">
+                <div className="group border border-[#E8E8E8] rounded hover:border-[#C8C8C8] transition-colors">
                   {/* Body */}
                   <div className="px-4 pt-4 pb-3">
                     {editingId === c.id ? (
@@ -744,16 +787,36 @@ function DocumentDetailModal({ requestId, categoryName, companyName, periodLabel
                     <div className="flex items-center gap-3 flex-shrink-0">
                       {/* Edit/delete — visible on hover for own comments */}
                       {isOwn && editingId !== c.id && (
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => { setEditingId(c.id); setEditText(c.content); }}
-                            className="text-[11px] text-[#ABABAB] hover:text-[#2D2D2D] transition-colors"
-                          >편집</button>
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="relative group/edit">
+                            <button
+                              onClick={() => { setEditingId(c.id); setEditText(c.content); }}
+                              className="text-[#ABABAB] hover:text-[#2D2D2D] transition-colors p-0.5"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 2.474L4.854 12.534l-3.11.689.69-3.11 8.579-8.686z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-0.5 bg-[#2D2D2D] text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover/edit:opacity-100 transition-opacity pointer-events-none z-10">
+                              <div style={{ position: "absolute", top: "-4px", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderBottom: "4px solid #2D2D2D" }} />
+                              편집
+                            </div>
+                          </div>
                           <span className="text-[#D8D8D8] text-[10px]">|</span>
-                          <button
-                            onClick={() => handleDelete(c.id)}
-                            className="text-[11px] text-[#ABABAB] hover:text-red-500 transition-colors"
-                          >삭제</button>
+                          <div className="relative group/delete">
+                            <button
+                              onClick={() => handleDelete(c.id)}
+                              className="text-[#ABABAB] hover:text-red-500 transition-colors p-0.5"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M2 4h12M5 4V2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5V4M6 7v5M10 7v5M3 4l.8 9.1a1 1 0 0 0 1 .9h6.4a1 1 0 0 0 1-.9L13 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-0.5 bg-[#2D2D2D] text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover/delete:opacity-100 transition-opacity pointer-events-none z-10">
+                              <div style={{ position: "absolute", top: "-4px", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderBottom: "4px solid #2D2D2D" }} />
+                              삭제
+                            </div>
+                          </div>
                         </div>
                       )}
                       {/* Author name */}
@@ -1084,15 +1147,20 @@ export default function DocumentsPage() {
                   </button>
                 </>
               ) : (
-                <button
-                  onClick={() => setIsEditMode(true)}
-                  className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded border border-[#E8E8E8] text-[#464646] hover:border-[#2D2D2D] hover:text-[#2D2D2D] transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                  편집
-                </button>
+                <div className="relative group/editmode">
+                  <button
+                    onClick={() => setIsEditMode(true)}
+                    className="flex items-center justify-center w-8 h-8 rounded border border-[#E8E8E8] text-[#464646] hover:border-[#2D2D2D] hover:text-[#2D2D2D] transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-0.5 bg-[#2D2D2D] text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover/editmode:opacity-100 transition-opacity pointer-events-none z-10">
+                    <div style={{ position: "absolute", top: "-4px", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderBottom: "4px solid #2D2D2D" }} />
+                    편집
+                  </div>
+                </div>
               )}
               <button
                 onClick={() => setShowRequestModal(true)}
@@ -1207,19 +1275,18 @@ export default function DocumentsPage() {
                                       {/* Edit mode: bulk due date for this company+period + delete this company's requests */}
                                       {isEditMode && (
                                         <>
-                                          <input
-                                            type="date"
-                                            defaultValue={month.due_date || ""}
-                                            className="border border-[#F68600] rounded px-2 py-0.5 text-xs focus:outline-none"
-                                            onChange={(e) => {
-                                              const newDate = e.target.value;
+                                          <DateInput
+                                            value={month.due_date || ""}
+                                            onChange={(newDate) => {
                                               const updates: Record<number, string> = {};
                                               for (const cat of month.missing) {
                                                 if (cat.request_id) updates[cat.request_id] = newDate;
                                               }
                                               setEditDates((prev) => ({ ...prev, ...updates }));
                                             }}
-                                            title="이 회사의 이 기간 마감일 일괄 변경"
+                                            className="w-36"
+                                            inputClassName="w-full border border-[#F68600] rounded px-2 py-0.5 pr-7 text-xs focus:outline-none"
+                                            iconSize={13}
                                           />
                                           <button
                                             onClick={async () => {
@@ -1430,15 +1497,12 @@ export default function DocumentsPage() {
                                               </span>
                                               <span className="flex-1 min-w-0 text-xs text-[#ABABAB]">—</span>
                                               {isEditMode && cat.request_id ? (
-                                                <input
-                                                  type="date"
+                                                <DateInput
                                                   value={editDates[cat.request_id] !== undefined ? editDates[cat.request_id] : (cat.due_date || "")}
-                                                  className="w-32 flex-shrink-0 border border-[#F68600] rounded px-2 py-0.5 text-xs focus:outline-none"
-                                                  onClick={(e) => e.stopPropagation()}
-                                                  onChange={(e) => {
-                                                    e.stopPropagation();
-                                                    setEditDates((prev) => ({ ...prev, [cat.request_id!]: e.target.value }));
-                                                  }}
+                                                  onChange={(v) => { setEditDates((prev) => ({ ...prev, [cat.request_id!]: v })); }}
+                                                  className="w-36 flex-shrink-0"
+                                                  inputClassName="w-full border border-[#F68600] rounded px-2 py-0.5 pr-7 text-xs focus:outline-none"
+                                                  iconSize={13}
                                                 />
                                               ) : (
                                                 <span className={`w-32 flex-shrink-0 text-xs font-medium ${isOverdue ? "text-red-500" : "text-[#7D7D7D]"}`}>
